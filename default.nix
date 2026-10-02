@@ -52,8 +52,18 @@ in
       lock,
     }:
     import ./lib deps,
-  prelude ? inputs.gen-prelude or (dep [ "gen-prelude" ]),
-  scope ? inputs.gen-scope or (dep [ "gen-scope" ]),
+  # gen-prelude and gen-scope are not inputs of this root; they are gen-program's, reached through
+  # its lock node, so gen-program, gen-merge and gen-aspects below are applied to one of each.
+  prelude ?
+    inputs.gen-prelude or (dep [
+      "gen-program"
+      "gen-prelude"
+    ]),
+  scope ?
+    inputs.gen-scope or (dep [
+      "gen-program"
+      "gen-scope"
+    ]),
   algebra ? inputs.gen-algebra or (dep [ "gen-algebra" ]),
   identity ? inputs.gen-identity or (dep [ "gen-identity" ]),
   # ★ A DEPENDENCY BUILT ON THE SUBSTRATE TAKES IT FROM ITS SIBLING FORMALS. `dep` would apply each
