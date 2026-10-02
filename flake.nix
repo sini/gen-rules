@@ -21,10 +21,10 @@
   # bindings (`gen/lib/hubSubstrate.nix`), so an APPLIED output here would abort every hub
   # evaluation with `attempt to call something which is not a function but a set`.
   inputs = {
-    gen-algebra.url = "github:sini/gen-algebra/genrules-u1";
+    gen-algebra.url = "github:sini/gen-algebra/18238b1c08d943dd7288b09e40c0b1d865e66d9d";
     gen-identity.url = "github:sini/gen-identity";
 
-    gen-program.url = "github:sini/gen-program/genrules-u3";
+    gen-program.url = "github:sini/gen-program/04c91612c33aaa453c7c89a3f9204b8456ee28bd";
     gen-program.inputs.gen-algebra.follows = "gen-algebra";
     gen-program.inputs.gen-identity.follows = "gen-identity";
 
@@ -32,7 +32,7 @@
     gen-merge.inputs.gen-prelude.follows = "gen-program/gen-prelude";
     gen-merge.inputs.gen-scope.follows = "gen-program/gen-scope";
 
-    gen-aspects.url = "github:sini/gen-aspects/genrules-u2";
+    gen-aspects.url = "github:sini/gen-aspects/1062acbeec6981ace3703f455db8eb2e45c719b9";
     gen-aspects.inputs.gen-prelude.follows = "gen-program/gen-prelude";
     gen-aspects.inputs.gen-merge.follows = "gen-merge";
     gen-aspects.inputs.gen-identity.follows = "gen-identity";
