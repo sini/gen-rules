@@ -170,8 +170,8 @@
       },
       "original": {
         "owner": "sini",
-        "ref": "genrules-u1",
         "repo": "gen-algebra",
+        "rev": "18238b1c08d943dd7288b09e40c0b1d865e66d9d",
         "type": "github"
       }
     },
@@ -216,8 +216,8 @@
       },
       "original": {
         "owner": "sini",
-        "ref": "genrules-u2",
         "repo": "gen-aspects",
+        "rev": "1062acbeec6981ace3703f455db8eb2e45c719b9",
         "type": "github"
       }
     },
@@ -709,8 +709,8 @@
       },
       "original": {
         "owner": "sini",
-        "ref": "genrules-u3",
         "repo": "gen-program",
+        "rev": "04c91612c33aaa453c7c89a3f9204b8456ee28bd",
         "type": "github"
       }
     },
