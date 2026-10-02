@@ -7,8 +7,8 @@
 # schema (not the fixture's raw option) and pin the measured outcome, so the ruling that decides S1
 # flips them deliberately rather than silently:
 #
-#   s1a  a closure at `includes` inside the module function: crosses through gen-aspects' wrapped
-#        closure arm (`__isWrappedFn`), 0 registrations. Unit 2 stage 2b refuses this shape.
+#   s1a  a closure at `includes` inside the module function: refused by gen-aspects' bare-closure
+#        refusal when the element is read, 0 registrations.
 #   s1c  a closure over a coordinate at a CLASS KEY inside the module function: delivered as a class
 #        module — no lift, no registration, no refusal. Its `has` presence gate is dropped.
 #   s1e  the same with a body reading the coordinate: fails in gen-merge naming a module argument,
@@ -111,12 +111,7 @@ in
       expected = {
         pinned = {
           registrations = 0;
-          includes = [
-            [
-              "__functor"
-              "__isWrappedFn"
-            ]
-          ];
+          includes = "THROWS";
           classEval = "no-class-content";
         };
         control = {
