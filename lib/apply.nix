@@ -15,7 +15,6 @@ let
     all
     attrNames
     concatMap
-    elem
     filter
     fromJSON
     head
@@ -128,9 +127,10 @@ let
 
       # The rule codomain: fired declarations of gen-program's rows, each inside the declared contract,
       # and closures (nested door rules). The check is gen-program's own (`codomainBreaches`), so the
-      # row table has one home. A `null` set is the over-approximation and ADMITS every name of its
-      # field: the check is run with that field emptied and its breaches dropped, so `null` is a
-      # defined admission at the firing, never the abort `codomainBreaches` gives on a `null` set.
+      # row table has one home. A `null` `binds`/`suppresses` is the over-approximation, and the check
+      # itself reads it as admitting every name of its field: a door rule declaring it FIRES, so `null`
+      # is an admission at the firing, never a refusal (the over-approximation refusal belongs to a head
+      # analysis, deferred) and never an abort.
       lowerRule =
         contract: mode: v:
         if !isList v then
@@ -152,16 +152,13 @@ let
               "binds"
               "suppresses"
             ];
-            open = filter (f: contract.${f} == null) fields;
-            found = program.codomainBreaches (genAttrs fields (
-              f: if contract.${f} == null then [ ] else contract.${f}
-            )) decls;
+            found = program.codomainBreaches contract decls;
             shapeBad = filter (b: b.field == "shape") found;
             breaches = filter (b: b.names != [ ]) (
               map (field: {
                 inherit field;
                 names = map (b: b.delta) (filter (b: b.field == field) found);
-              }) (filter (f: !(elem f open)) fields)
+              }) fields
             );
           in
           if shapeBad != [ ] then

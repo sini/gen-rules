@@ -256,9 +256,11 @@ in
       };
     };
 
-    # A `null` set is the over-approximation, and it is a DEFINED ADMISSION at the firing: every name
-    # of that field is admitted, the other fields are still checked.
-    test-door-rule-null-contract-admits = {
+    # A `null` `binds`/`suppresses` is the over-approximation, and a door rule declaring it FIRES: the
+    # door returns `right` for its binding and suppressing declarations, never a refusal and never an
+    # abort. gen-program's own check reads `null` as admit-all; at a gen-program whose check does not,
+    # this cell aborts.
+    test-door-rule-null-admits = {
       expr =
         let
           out = [
