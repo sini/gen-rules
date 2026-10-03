@@ -199,11 +199,9 @@ in
     test-door-rule-fires = {
       expr = map (d: builtins.removeAttrs d [ "__mint" ]) (
         program.groundInstances {
-          body = ruleBody [ rule.config.rules.p ];
-          context = ctx;
           sources = srcs;
-          inherit (rule) door;
-        }
+          door = rule.door;
+        } ctx (ruleBody [ rule.config.rules.p ])
       );
       expected = [
         {
