@@ -42,14 +42,16 @@ let
       sources = srcs;
     }).right;
 
-  decl = d: program.declaration ({ relata = [ "bolt" ]; } // d);
+  decl =
+    d:
+    program.declaration (removeAttrs d [
+      "head"
+      "relata"
+    ]) (d.relata or [ "bolt" ]) d.head;
   solve =
     decls:
     program.model {
-      program = program.program {
-        frozen = [ "bolt" ];
-        declarations = decls;
-      };
+      program = program.program [ "bolt" ] decls;
       interpretation = [ ];
       prior = null;
       complete = true;
