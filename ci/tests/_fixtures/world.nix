@@ -89,12 +89,12 @@ let
         options.fw.lambdas = R.lambdas;
         config._module.args.pkgs = "PKGS";
       };
-      r = merge.evalModuleTree {
-        modules = [
+      r = merge.evalModuleTree { } (
+        [
           decls
         ]
-        ++ builtins.genList (i: load i (builtins.elemAt modules i)) (builtins.length modules);
-      };
+        ++ builtins.genList (i: load i (builtins.elemAt modules i)) (builtins.length modules)
+      );
       door = R.mkApply {
         lambdas = r.config.fw.lambdas;
         cnf = cnf0;

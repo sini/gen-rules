@@ -44,17 +44,15 @@ let
   run =
     shape:
     let
-      r = merge.evalModuleTree {
-        modules = [
-          { options.schema = schema.schemaOption; }
-          (schema.mkAspectModule { })
-          {
-            options.lambdas = R.lambdas;
-            config._module.args.pkgs = "PKGS";
-          }
-          (load shape)
-        ];
-      };
+      r = merge.evalModuleTree { } [
+        { options.schema = schema.schemaOption; }
+        (schema.mkAspectModule { })
+        {
+          options.lambdas = R.lambdas;
+          config._module.args.pkgs = "PKGS";
+        }
+        (load shape)
+      ];
       m = r.config.aspects.main;
       try =
         v:
@@ -87,17 +85,15 @@ let
         if (m.nixos or null) == null then
           "no-class-content"
         else
-          (merge.evalModuleTree {
-            modules = [
-              {
-                options.marker = merge.mkOption {
-                  type = merge.types.str;
-                  default = "none";
-                };
-              }
-              m.nixos
-            ];
-          }).config.marker
+          (merge.evalModuleTree { } [
+            {
+              options.marker = merge.mkOption {
+                type = merge.types.str;
+                default = "none";
+              };
+            }
+            m.nixos
+          ]).config.marker
       );
     };
 in
