@@ -22,6 +22,13 @@ is applied once, at the door, against exactly what its pattern reads:
 - an open pattern receives the context restricted to the framework's declared coordinates;
 - `{ }:` receives `{ }`.
 
+Telling `{ }:` from `{ ... }:` and `x:` is the one place the library reads `builtins.toXML`, because
+`functionArgs` is `{ }` for all three (`patternOf` in `lib/walk.nix`). **Option (c), not taken:** hand
+every `functionArgs = { }` shape `{ }`. It is uniform and needs no `toXML`, but a `{ ... }:` closure is
+then handed nothing it can read, and a bare positional `ctx:` aspect receives `{ }` too. At
+`d933ba8`, 3 fixtures (`ci/tests/door.nix`, `ci/tests/lower.nix`) declare an open-pattern closure and
+would change. **Flagged for owner review (den-hoag-t5hli):** the `toXML` dependency.
+
 ## What it does
 
 | intent                                   | export                                                                                            |
