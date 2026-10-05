@@ -41,7 +41,7 @@ let
   catalogue = import ./catalogue.nix { inherit T; };
 in
 {
-  inherit (loader) defunctionalize lambdas;
+  inherit (loader) defunctionalize lambdas lambdasMount;
   inherit (door) mkApply;
   inherit (catalogue) conditionalEdge abnormality;
 }

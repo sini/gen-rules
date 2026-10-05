@@ -36,6 +36,7 @@ let
     entityKinds = d;
     keySemantics.nixos.category = "class";
     inherit moduleArgs;
+    aspectModules = [ (R.lambdasMount "lambdas") ];
   };
 
   # One framework evaluation: `modules` admitted through the loader, the door over the merged table.

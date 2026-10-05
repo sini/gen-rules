@@ -35,6 +35,7 @@ would change. **Flagged for owner review:** the `toXML` dependency.
 | ---------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | lower closures at the framework's loader | `defunctionalize { cnf; declared ? null; key; lambdasPath; aspectPaths ? [ ]; rulePaths ? [ ]; }` |
 | declare the registration table           | `lambdas`, an option the framework mounts at `lambdasPath`                                        |
+| mount the table inside each aspect       | `lambdasMount name`, a module the framework puts in `cnf.aspectModules`                           |
 | build the door                           | `mkApply { lambdas; cnf; declared ? null; entityKinds ? null; }`                                  |
 | write a conditional edge                 | `conditionalEdge { head; when; unless; relata; label ? null; }`                                   |
 | write an abnormality                     | `abnormality { head; when; relata; }`                                                             |
@@ -73,9 +74,13 @@ abnormality defeats.
 
 - **It checks nothing statically about a closure's body.** This is the stated price. The door checks
   each application's output, not the closure.
-- **It does not enter a module function written at an aspect position.** Closures inside that
-  function's result have no registration channel. How they should cross is an open owner reading, and
-  `ci/tests/s1.nix` pins today's behaviour so that the ruling changes it deliberately.
+- **It does not enter a module function written at an aspect position at load.** The framework mounts
+  the registration table inside gen-aspects' aspect submodule (`lambdasMount` in `cnf.aspectModules`,
+  the one cnf handed to `mkAspectSchema`, `defunctionalize` and `mkApply`). The function is wrapped, and
+  when gen-merge applies it, its result is lowered at the aspect it was written at and its closures
+  register in that aspect's table. Each aspect's table is a definition of the root table, so the module
+  system's own merge unites them and refuses a duplicate id by name. A loader over aspect positions
+  without the mount is refused by name (`ci/tests/s1.nix`).
 - **It does not lower `__functor` aspects.** That form is the framework's vocabulary.
 - **It runs no head analysis.** The refusal for an over-approximated door rule (`null` binds or
   suppresses) belongs to the first analysis that reads heads, and no such analysis exists.
