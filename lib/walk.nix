@@ -17,6 +17,7 @@ let
     filter
     functionArgs
     genList
+    head
     isAttrs
     isFunction
     isList
@@ -102,6 +103,16 @@ let
     bad = concatLists (map (w: w.bad) ws);
   };
 
+  # S1 arm (a): the names under which `cnf.aspectModules` mounts gen-rules' registration table inside the
+  # aspect submodule (`lambdasMount`). Read here, from the cnf both sites hand the walk, so the loader and
+  # the door carry the same key by construction.
+  mountKey = "gen-rules.lambdasMount";
+  mountsOf =
+    cnf:
+    map (m: head (attrNames m.options)) (
+      filter (m: isAttrs m && (m.key or null) == mountKey) (cnf.aspectModules or [ ])
+    );
+
   # mode = { cnf; declared; idOf = pos: pattern: id; node = condition: refTerm: pattern: value; }
   walk =
     mode:
@@ -109,6 +120,7 @@ let
       isModuleFn = aspects.mkIsModuleFn mode.cnf;
       category = aspects.keyCategory mode.cnf;
       moduleArgs = mode.cnf.moduleArgs;
+      tableKeys = mountsOf mode.cnf;
 
       closureAt =
         pos: f:
@@ -149,9 +161,20 @@ let
       aspectAt =
         pos: v:
         if isFunction v then
-          # A module function at an aspect position is NOT entered (design Section 3 (b) wraps it;
-          # where its result's closures register is an open owner reading, S1).
-          if isModuleFn v then leaf v else closureAt pos v
+          # A module function at an aspect position is NOT entered (design Section 3 (b)): where the
+          # framework mounts the table in the aspect submodule (S1 arm (a)), it is wrapped so that its
+          # result passes the same lowering when gen-merge applies it; else it is carried.
+          if isModuleFn v then
+            if mode ? moduleFn then
+              {
+                value = mode.moduleFn pos v;
+                found = [ ];
+                bad = [ ];
+              }
+            else
+              leaf v
+          else
+            closureAt pos v
         else if isAttrs v && v ? __functor then
           # den v1's `__functor` aspect form is the framework's vocabulary (design open item 9): the
           # loader carries it unlowered; in the door's output it is a function gen-aspects would hold.
@@ -174,6 +197,20 @@ let
           wrapperAt pos v aspectAt
         else if isAttrs v then
           attrsAt pos v
+        else
+          leaf v;
+
+      # An aspect COLLECTION (the loader's aspect paths): each key names an aspect, so it is never
+      # classified as a class key, `includes` or the mounted table; that happens at a node only.
+      collectionAt =
+        pos: v:
+        if isAttrs v && v ? _type then
+          wrapperAt pos v collectionAt
+        else if isAttrs v then
+          let
+            ws = mapAttrs (n: aspectAt (pos ++ [ n ])) v;
+          in
+          combine (builtins.attrValues ws) // { value = mapAttrs (_: w: w.value) ws; }
         else
           leaf v;
 
@@ -312,7 +349,11 @@ let
             let
               cat = category k;
             in
-            if k == "includes" && isList c then
+            if elem k tableKeys then
+              # S1 (a): the framework-mounted registration table inside an aspect: carried, never
+              # entered (its closures are registrations already).
+              leaf c
+            else if k == "includes" && isList c then
               listAt (pos ++ [ k ]) c
             else if cat == "class" then
               classAt (pos ++ [ k ]) c
@@ -355,12 +396,19 @@ let
         };
     in
     {
-      inherit aspectAt listAt wrapperAt;
+      inherit
+        aspectAt
+        collectionAt
+        listAt
+        wrapperAt
+        ;
     };
 in
 {
   inherit
     walk
+    mountKey
+    mountsOf
     patternOf
     conditionOf
     isCallable

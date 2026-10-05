@@ -112,13 +112,84 @@ let
       rulePaths ? [ ],
     }:
     let
-      guardMode = k: {
-        inherit cnf declared;
-        where = k;
-        idOf = idOf k;
-        node =
-          condition: ref: _:
-          aspects.guard condition ref;
+      # S1 arm (a): the name the framework mounted the table under inside the aspect submodule, read from
+      # the mount itself (`cnf.aspectModules`), the one value the door reads too.
+      mounts = W.mountsOf cnf;
+      mount =
+        if mounts == [ ] then
+          null
+        else if length mounts == 1 then
+          head mounts
+        else
+          throw "gen-rules.defunctionalize: `cnf.aspectModules` holds ${toString (length mounts)} `lambdasMount` entries (${builtins.concatStringsSep ", " mounts}): a framework mounts gen-rules' registration table once.";
+      guardMode =
+        k:
+        {
+          inherit cnf declared;
+          where = k;
+          idOf = idOf k;
+          node =
+            condition: ref: _:
+            aspects.guard condition ref;
+        }
+        // (
+          if mount == null then
+            { }
+          else
+            {
+              # The wrapper keeps the function's formals, so `mkIsModuleFn` still classifies it and
+              # gen-merge applies it by them; its result is lowered at the aspect it was written at,
+              # under the writing module's key, and registers in that aspect's own table. The aspect
+              # submodule reads an attrset definition (a functor) as shorthand config, as nixpkgs'
+              # submodule does, so the functor is handed over inside a lambda module, gen-aspects'
+              # own `_: d.value` idiom.
+              moduleFn =
+                pos: f:
+                { config, ... }:
+                {
+                  imports = [
+                    {
+                      __functionArgs = builtins.functionArgs f;
+                      __functor =
+                        _: args:
+                        lowerModule {
+                          base = pos;
+                          # the applied result is the aspect NODE itself
+                          entry = "aspectAt";
+                          aspectPaths = [ [ ] ];
+                          rulePaths = [ ];
+                          lambdasPath = [ mount ];
+                        } k (f args);
+                    }
+                  ];
+                };
+            }
+        );
+      # Every aspect's table is a DEFINITION of the root table, so the root option's own merge unites
+      # them and decides a duplicate id. Keyed, so the module system collects it once however many
+      # modules this loader lowered.
+      union = {
+        key =
+          "gen-rules.lambdasMount:"
+          + toJSON [
+            lambdasPath
+            aspectPaths
+            mount
+          ];
+        imports = [
+          (
+            { config, ... }:
+            setAt lambdasPath (
+              merge.mkMerge (builtins.concatMap (p: tablesUnder cnf mount (getAt p config)) aspectPaths)
+            )
+          )
+        ];
+      };
+      # The framework's aspect paths name aspect COLLECTIONS, whose keys are aspect names.
+      top = {
+        base = [ ];
+        entry = "collectionAt";
+        inherit aspectPaths rulePaths lambdasPath;
       };
       ruleMode = k: contract: {
         inherit cnf declared;
@@ -153,12 +224,11 @@ let
           one pos v;
 
       lowerConfig =
-        k: c:
+        at: k: c:
         let
-          aspectSteps = map (p: cfg: descend p cfg (v: (W.walk (guardMode k)).aspectAt p v)) aspectPaths;
-          ruleSteps = map (
-            r: cfg: descend r.path cfg (v: rulesAt (ruleMode k r.contract) r.path v)
-          ) rulePaths;
+          aspectSteps = map (
+            p: cfg: descend p cfg (v: (W.walk (guardMode k)).${at.entry} (at.base ++ p) v)
+          ) at.aspectPaths;
           step =
             acc: f:
             let
@@ -180,7 +250,7 @@ let
               bad = acc.bad ++ w.bad;
             };
           afterAspects = foldl' step (W.leaf c) aspectSteps;
-          done = foldl' stepRule afterAspects rulePaths;
+          done = foldl' stepRule afterAspects at.rulePaths;
           regs = listToAttrs (
             map (x: {
               name = x.id;
@@ -192,23 +262,23 @@ let
         in
         (merge.mkMerge [
           done.value
-          (setAt lambdasPath regs)
+          (setAt at.lambdasPath regs)
         ]);
 
       lowerModule =
-        k: m:
+        at: k: m:
         if isPath m then
           {
             key = toString m;
             _file = m;
-            imports = [ (lowerModule (toString m) (import m)) ];
+            imports = [ (lowerModule at (toString m) (import m)) ];
           }
         else if W.isCallable m then
           # A top-level module function: wrapped, never applied here; the wrapper keeps its formals,
           # so gen-merge applies it by them (precondition unit 0, den-hoag-...-u6lf8).
           {
             __functionArgs = builtins.functionArgs m;
-            __functor = _: args: lowerModule k (m args);
+            __functor = _: args: lowerModule at k (m args);
           }
         else if isAttrs m && isFullForm m then
           let
@@ -216,22 +286,89 @@ let
           in
           m
           // {
-            config = lowerConfig k' (m.config or { });
+            config = lowerConfig at k' (m.config or { });
             imports = genList (
               i:
               let
                 x = elemAt (m.imports or [ ]) i;
               in
-              lowerModule (if isPath x then toString x else "${k'}${anonImport}${toString i}") x
+              lowerModule at (if isPath x then toString x else "${k'}${anonImport}${toString i}") x
             ) (length (m.imports or [ ]));
           }
         else if isAttrs m then
-          { config = lowerConfig k m; }
+          { config = lowerConfig at k m; }
         else
           m;
     in
-    lowerModule key;
+    if aspectPaths != [ ] && mount == null then
+      throw "gen-rules.defunctionalize: `aspectPaths` is set and `cnf.aspectModules` holds no `lambdasMount`: a module function written at an aspect position would be carried unentered, and a closure in its result would reach gen-aspects unlowered (at a class key, delivered with its guard dropped). Mount gen-rules' registration table inside the aspect submodule: put `genRules.lambdasMount \"<name>\"` in `cnf.aspectModules`, and hand that one cnf to `mkAspectSchema`, `defunctionalize` and `mkApply`."
+    else if mount != null && !(aspects.mkIsModuleFn cnf ({ config, ... }: { })) then
+      throw "gen-rules.defunctionalize: `cnf.aspectModules` mounts gen-rules' registration table, so a module function at an aspect position is handed to gen-aspects inside a `{ config, ... }:` module, and `config` is not in `cnf.moduleArgs`: gen-aspects would read that module as a context closure. Declare `config` in `cnf.moduleArgs` (the module system passes it to every module)."
+    else if mount == null then
+      lowerModule top key
+    else
+      m: {
+        imports = [
+          (lowerModule top key m)
+          union
+        ];
+      };
+
+  # S1 arm (a): the mount. The aspect-submodule module the framework puts in `cnf.aspectModules`; it
+  # declares the registration table under `name`, and the walk reads `name` back from the cnf at the
+  # loader and at the door alike (`walk.mountsOf`), so the two sites cannot disagree on where it is.
+  # Inside the aspect submodule `name` is this table, never a nested aspect: it holds registration
+  # records only, and refuses anything else by name.
+  lambdasMount = name: {
+    key = W.mountKey;
+    options.${name} = merge.mkOption {
+      inherit (lambdas) type default description;
+      apply =
+        t:
+        let
+          bad = builtins.filter (id: !(isAttrs t.${id} && t.${id} ? fn && t.${id} ? codomain)) (attrNames t);
+        in
+        if bad == [ ] then
+          t
+        else
+          throw "gen-rules.lambdasMount: `${name}` is gen-rules' registration table, mounted inside the aspect submodule, and it holds ${toJSON bad}, which are not registration records (`{ fn; codomain; }`): a nested aspect cannot be named `${name}`. Rename the aspect, or mount the table under another name.";
+    };
+  };
+
+  getAt = p: v: foldl' (acc: k: acc.${k} or { }) v p;
+
+  # Every aspect table under an aspects value, one list element per aspect node, at the positions the
+  # lowering wraps at (a freeform nested key and each `includes` element; `keyCategory`). The table key
+  # itself is never walked.
+  tablesUnder =
+    cnf: t:
+    let
+      isNode = v: isAttrs v && !(v.__guard or false) && v ? ${t};
+      of =
+        a:
+        [ a.${t} ]
+        ++ builtins.concatMap (
+          k:
+          let
+            v = a.${k};
+          in
+          if k == t || (k != "includes" && aspects.keyCategory cnf k != null) then
+            [ ]
+          else if k == "includes" && isList v then
+            builtins.concatMap (e: if isNode e then of e else [ ]) v
+          else if isNode v then
+            of v
+          else
+            [ ]
+        ) (attrNames a);
+    in
+    as: builtins.concatMap (n: if isNode as.${n} then of as.${n} else [ ]) (attrNames as);
 in
 {
-  inherit defunctionalize lambdas siteOf;
+  inherit
+    defunctionalize
+    lambdas
+    lambdasMount
+    siteOf
+    ;
 }

@@ -11,6 +11,7 @@
         "conditionalEdge"
         "defunctionalize"
         "lambdas"
+        "lambdasMount"
         "mkApply"
       ];
     };
