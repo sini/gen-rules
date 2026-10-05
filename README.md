@@ -27,7 +27,7 @@ Telling `{ }:` from `{ ... }:` and `x:` is the one place the library reads `buil
 every `functionArgs = { }` shape `{ }`. It is uniform and needs no `toXML`, but a `{ ... }:` closure is
 then handed nothing it can read, and a bare positional `ctx:` aspect receives `{ }` too. At
 `d933ba8`, 3 fixtures (`ci/tests/door.nix`, `ci/tests/lower.nix`) declare an open-pattern closure and
-would change. **Flagged for owner review (den-hoag-t5hli):** the `toXML` dependency.
+would change. **Flagged for owner review:** the `toXML` dependency.
 
 ## What it does
 
