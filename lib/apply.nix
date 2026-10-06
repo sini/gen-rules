@@ -40,6 +40,8 @@ let
   jstrs = "(${jstr}(,${jstr})*)?";
   jreads = "(null|\\[${jstrs}])";
   rxDeclared = "[{]\"declared\":[{]\"reads\":${jreads},\"site\":${jstr}[}][}]";
+  # a declared site, `siteOf`'s encoding: the module key, then the position
+  rxSite = "\\[${jstr},\\[(${jseg}(,${jseg})*)?]]";
   rxNested = "[{]\"nested\":[{]\"outer\":${jstr},\"position\":\\[(${jseg}(,${jseg})*)?],\"reads\":${jreads},\"sources\":[{](${jstr}:${jstr}(,${jstr}:${jstr})*)?[}][}][}]";
   decode =
     id:
@@ -186,7 +188,31 @@ let
           d = decode id;
           root = rootOf d;
           rootId = builtins.toJSON root;
-          reg = lambdas.${rootId} or null;
+          # a closure the loader met is registered at the root by its id; one met in a module function's
+          # result, in the table of the aspect the module system applied it in, read along its site
+          # (S1 arm (a)). Both are read on every lookup, so a record on the closure's own position is
+          # read even when the root holds the id
+          sitePos =
+            let
+              s = root.declared.site;
+            in
+            if match rxSite s != null then builtins.elemAt (fromJSON s) 1 else [ ];
+          collections = filter (k: lambdas ? ${k}) (W.prefixKeys sitePos);
+          held =
+            if collections == [ ] || W.mountsOf cnf == [ ] then
+              [ ]
+            else
+              let
+                c = fromJSON (head collections);
+              in
+              W.tableAt lambdas.${head collections} (builtins.genList (
+                i: builtins.elemAt sitePos (i + builtins.length c)
+              ) (builtins.length sitePos - builtins.length c)) rootId;
+          # the root's record and the tables reached unite as one merge: one record, equal records, or
+          # a refusal
+          reached = (if lambdas ? ${rootId} then [ lambdas.${rootId} ] else [ ]) ++ held;
+          conflicting = builtins.any (h: h != head reached) reached;
+          reg = if reached == [ ] || conflicting then null else head reached;
           # The nested node's recovered context: the outer's received coordinates by their sources.
           rebound =
             if d ? nested then
@@ -283,6 +309,12 @@ let
             message = "the door resolves registration identifiers (refId's `declared`/`nested` records); ${
               if builtins.isString id then shortId id else "a ${builtins.typeOf id}"
             } is not one";
+          }
+        else if reached != [ ] && conflicting then
+          refuse "duplicate-registration" {
+            inherit id;
+            tables = builtins.length reached;
+            message = "${toString (builtins.length reached)} tables on the closure's own position register ${rootId}, with records that differ; a registration identifier names one closure";
           }
         else if reg == null then
           refuse "unregistered" {

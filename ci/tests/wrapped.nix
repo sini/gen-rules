@@ -39,7 +39,7 @@ let
   };
   one = mod: run { modules = [ mod ]; };
   inc = v: { aspects.main.includes = v; };
-  regs = mods: builtins.length (builtins.attrNames (framework { modules = mods; }).r.config.lambdas);
+  regs = mods: builtins.length (m.registered (framework { modules = mods; }).r.config.lambdas);
   descs = mods: map (x: x.description) (framework { modules = mods; }).r.config.aspects.main.includes;
   firedDescs = mods: map (o: o.description) (run { modules = mods; }).fired;
   held = mod: classMarker (framework { modules = [ mod ]; }).r.config.aspects.main.nixos;
@@ -82,7 +82,7 @@ let
       out = o: if o ? nixos then { nixos = asClass o.nixos; } else o;
     in
     {
-      registrations = builtins.length (builtins.attrNames f.r.config.lambdas);
+      registrations = builtins.length (m.registered f.r.config.lambdas);
       conditions = map (n: n.condition) nodes;
       fired = map (n: out (f.fire ctx n)) nodes;
     };
@@ -262,7 +262,7 @@ in
             };
           in
           {
-            registrations = builtins.length (builtins.attrNames f.config.lambdas);
+            registrations = builtins.length (w.registered f.config.lambdas);
             doorRule = f.config.rules.r1 ? when;
           };
       };
@@ -362,7 +362,7 @@ in
       {
         expr = {
           includes = builtins.length f.r.config.aspects.main.includes;
-          table = builtins.length (builtins.attrNames f.r.config.lambdas);
+          table = builtins.length (m.registered f.r.config.lambdas);
         };
         expected = {
           includes = 1;

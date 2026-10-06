@@ -42,6 +42,7 @@ let
 in
 {
   inherit (loader) defunctionalize lambdas lambdasMount;
+  inherit (walk) registrations;
   inherit (door) mkApply;
   inherit (catalogue) conditionalEdge abnormality;
 }

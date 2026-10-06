@@ -104,8 +104,9 @@ in
       expectedError.msg = exactly "gen-rules.abnormality: unknown field(s) [\"unless\"]";
     };
 
-    # Two registrations under one id, from different closures: the root table's own merge refuses by
-    # name. The second is written straight to another aspect's mounted table (the loader carries it).
+    # Two registrations under one id, from different closures, both on the closure's own position: the
+    # door unites the tables it reaches and refuses by name. The second is written straight to the
+    # aspect's mounted table (the loader carries it).
     test-a-duplicate-registration-id-is-refused-by-name =
       let
         # the id the loader gives `shared`'s closure at `main` (module key `s1:0`), written out so the
@@ -129,14 +130,86 @@ in
         expr = builtins.deepSeq (s1Fire [
           { aspects.main = s1.shared; }
           {
-            aspects.z.lambdas.${id} = {
+            # spelled as the loader's own record, so the table admits it and the door meets both
+            aspects.main.lambdas.${id} = {
+              inherit id;
               fn = { thimble, ... }: { description = "other-${thimble}"; };
               codomain = "guard";
             };
           }
         ] s1.ctx) null;
-        expectedError.msg = firstLine "gen-merge: the option `lambdas.${builtins.toJSON id}' has conflicting definitions:";
+        expectedError.msg = genPrelude.escapeRegex ": duplicate-registration: 2 tables on the closure's own position register ";
       };
+
+    # A record written by hand into an aspect's table, off the closure's position, where the door never
+    # looks: the table refuses it by name when it is read (ADR-0025 item 1), never drops it.
+    test-a-record-the-loader-did-not-make-is-refused-by-name = {
+      expr =
+        s1.registered
+          (s1.framework {
+            modules = [
+              { aspects.main = s1.shared; }
+              {
+                aspects.z.lambdas.${zmId} = {
+                  fn = { thimble, ... }: { description = "forged-${thimble}"; };
+                  codomain = "guard";
+                };
+              }
+            ];
+          }).r.config.lambdas;
+      expectedError.msg = genPrelude.escapeRegex "gen-rules.lambdasMount: `lambdas` holds records under [";
+    };
+
+    # The same record naming its own key: the mark is a well-formedness check, not provenance (anyone
+    # can write it, den-hoag-uw098), so the mount admits it, and the enumerator, uniting the records
+    # under one id by the door's `==`, refuses the differing pair by name.
+    test-a-differing-record-naming-its-key-is-refused-by-the-enumerator = {
+      expr =
+        s1.registered
+          (s1.framework {
+            modules = [
+              { aspects.main = s1.shared; }
+              {
+                aspects.z.lambdas.${zmId} = {
+                  id = zmId;
+                  fn = { thimble, ... }: { description = "forged-${thimble}"; };
+                  codomain = "guard";
+                };
+              }
+            ];
+          }).r.config.lambdas;
+      expectedError.msg = exactly "gen-rules.registrations: duplicate-registration: [${builtins.toJSON zmId}] are registered by records that differ";
+    };
+
+    # A load-time closure is registered at the root, and its firing still reads the tables on its own
+    # position: a record written there by hand is refused by the mount, and one naming its key unites
+    # with the root's and is refused by the door, never passed over because the root holds the id.
+    test-a-hand-written-record-on-a-load-time-closures-position-is-refused-by-name = {
+      expr = builtins.deepSeq (s1Fire [
+        { aspects.main.includes = [ s1.inner ]; }
+        {
+          aspects.main.lambdas.${zmId} = {
+            fn = { thimble, ... }: { description = "forged-${thimble}"; };
+            codomain = "guard";
+          };
+        }
+      ] s1.ctx) null;
+      expectedError.msg = genPrelude.escapeRegex "gen-rules.lambdasMount: `lambdas` holds records under [";
+    };
+
+    test-a-differing-record-naming-its-key-on-a-load-time-closures-position-is-refused-by-name = {
+      expr = builtins.deepSeq (s1Fire [
+        { aspects.main.includes = [ s1.inner ]; }
+        {
+          aspects.main.lambdas.${zmId} = {
+            id = zmId;
+            fn = { thimble, ... }: { description = "forged-${thimble}"; };
+            codomain = "guard";
+          };
+        }
+      ] s1.ctx) null;
+      expectedError.msg = genPrelude.escapeRegex ": duplicate-registration: 2 tables on the closure's own position register ";
+    };
 
     test-the-aspect-mount-needs-config-among-the-module-arguments = {
       expr = builtins.deepSeq (R.defunctionalize {
@@ -191,7 +264,7 @@ in
     # name is table content: the table holds registration records only and refuses anything else.
     test-a-nested-aspect-named-as-the-mount-is-refused-by-name = {
       expr =
-        builtins.attrNames
+        s1.registered
           (s1.framework {
             modules = [ { aspects.main.lambdas.nixos = { bobbin, pkgs, ... }: { marker = "delivered"; }; } ];
           }).r.config.lambdas;
@@ -200,7 +273,7 @@ in
 
     # The one mismatch the mount leaves formable: the schema built from a cnf WITHOUT the mount while the
     # loader and the door read one WITH it. The table key is then a freeform nested aspect, and the
-    # registered closure is refused by gen-aspects at its position, never served.
+    # registered record is refused by gen-aspects at its position, never served.
     test-a-schema-without-the-mount-refuses-the-registered-closure-at-its-position =
       let
         cnf0 = {
@@ -240,7 +313,12 @@ in
           sources = s1.srcs;
           scope = { };
         }) (s1.guardsIn r.config.aspects.main)) null;
-        expectedError.msg = firstLine "gen-aspects: aspect `main.lambdas.{\"declared\":{\"reads\":[\"thimble\"],\"site\":\"[\\\"s1:0\\\",[\\\"aspects\\\",\\\"main\\\",\\\"includes\\\",0]]\"}}.fn`: a context closure reached a gen-aspects-typed position.";
+        # the record's two leaves under gen-aspects' freeform slot are both refused, and which one
+        # is named first is the evaluator's order: its identifier (a string; Nix, Determinate) or its
+        # closure (Lix)
+        expectedError.msg =
+          genPrelude.escapeRegex "gen-aspects: aspect `main"
+          + "(`: orphan leaf at `main\\.lambdas\\..*\\.id` \\(a value of type string|\\.lambdas\\..*\\.fn`: a context closure reached a gen-aspects-typed position)";
       };
 
     # s1e: a class closure inside a module function, reading `bobbin`, fired at a context without it

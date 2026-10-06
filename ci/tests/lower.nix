@@ -130,7 +130,7 @@ in
     # A closure whose body throws is lowered and its node forced: the lowering applies nothing.
     test-lower-applies-nothing = {
       expr = {
-        registered = builtins.length (builtins.attrNames shapes.config.lambdas);
+        registered = builtins.length (w.registered shapes.config.lambdas);
         bomb = form (shapes.node "bomb");
       };
       expected = {
@@ -158,7 +158,7 @@ in
         in
         {
           distinct = (f.node "a").body.id != (f.node "b").body.id;
-          registered = builtins.length (builtins.attrNames f.config.lambdas);
+          registered = builtins.length (w.registered f.config.lambdas);
         };
       expected = {
         distinct = true;
