@@ -80,6 +80,8 @@ let
           scope = { };
         } node;
     };
+  # Every registration identifier, once: gen-rules' own enumerator (an instrument's read).
+  registered = R.registrations;
   isGuard = x: builtins.isAttrs x && (x.__guard or false);
   # door nodes in an aspect's includes, descending into include elements that are aspects
   guardsIn =
@@ -125,7 +127,7 @@ let
       nodes = guardsIn f.r.config.aspects.${name};
     in
     {
-      registrations = builtins.length (builtins.attrNames f.r.config.lambdas);
+      registrations = builtins.length (registered f.r.config.lambdas);
       conditions = map (n: n.condition) nodes;
       fired = map (n: out (f.fire context n)) nodes;
     };
@@ -135,7 +137,7 @@ let
       f = framework { inherit modules; };
     in
     {
-      ids = builtins.attrNames f.r.config.lambdas;
+      ids = registered f.r.config.lambdas;
       refs = map (n: n.body.id) (guardsIn f.r.config.aspects.${name});
     };
   # A module, keyed explicitly, writing `inner` inside a module function at `main` (or, as its
@@ -177,6 +179,7 @@ in
     at
     framework
     isGuard
+    registered
     guardsIn
     classMarker
     out

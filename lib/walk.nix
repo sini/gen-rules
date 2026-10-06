@@ -160,6 +160,149 @@ let
     else
       leaf v;
 
+  # S1 arm (a): where the root holds an aspect collection, keyed by the collection's path. An
+  # identifier is a JSON object, an address a JSON array, so the two never share a spelling.
+  addressKey = p: builtins.unsafeDiscardStringContext (builtins.toJSON p);
+  # the address of every proper prefix of a position, shortest first
+  prefixKeys = pos: genList (i: addressKey (genList (j: elemAt pos j) (i + 1))) (length pos);
+
+  # The root's view of an aspect collection, keyed like it, every field lazy and built once per
+  # evaluation, so lookups share it. An aspect's view holds its own table, the views of its nested
+  # aspects, and for its `includes` the views of the aspect elements beside one index of their tables
+  # (identifier to each record and the element holding it): reading that index forces the list and its
+  # elements' own tables, the positions the merge forces to reach any door node in the list, and no
+  # condition below them. A key is a nested aspect by its name (gen-aspects' `keyCategory`), told before
+  # its value is read, so a class key's condition is never forced.
+  viewOf =
+    cnf: t: c:
+    let
+      isNode = v: isAttrs v && !(v.__guard or false) && v ? ${t};
+      nested = k: k != t && k != "includes" && aspects.keyCategory cnf k == null;
+      nodeView = a: {
+        own = a.${t};
+        keys = mapAttrs (k: v: if nested k && isNode v then nodeView v else null) a;
+        includes =
+          let
+            els = filter isNode (if isList (a.includes or null) then a.includes else [ ]);
+          in
+          rec {
+            views = map nodeView els;
+            held = builtins.zipAttrsWith (_: hs: hs) (
+              genList (
+                i:
+                mapAttrs (_: r: {
+                  inherit r;
+                  view = elemAt views i;
+                }) (elemAt els i).${t}
+              ) (length els)
+            );
+          };
+      };
+    in
+    mapAttrs (_: a: if isNode a then nodeView a else null) c;
+
+  # Every record registered under `id` in a view (`viewOf`), read along `pos`, the position the closure
+  # was written at. Each step moves as the merged value does: an aspect name or a nested key to that
+  # aspect, `includes` to every aspect element of the list (an element's index is its definition's,
+  # never its merged position), and a step the merged value does not hold (a list index, a wrapper's
+  # `merge`, a class key) stays. Each aspect reached is asked for `id` once; past an `includes` list
+  # holding `id`, only the elements holding it are followed, and past one holding none, every element.
+  # A module function's closures register in the table of the aspect the module system applied it in.
+  # That is the aspect it was written at, unless gen-aspects coerced it, beside a second definition,
+  # into an element of that aspect's `includes`: so where no table on `pos` holds `id`, the `includes`
+  # elements of the aspects reached are asked, the deepest aspect first, and the first that holds `id`
+  # answers. A lookup forces the aspects along `pos` and the `includes` lists on it, and an aspect's
+  # `includes` off it only when the closure's own function sits there.
+  tableAt =
+    view: pos: id:
+    let
+      own = vs: concatLists (map (v: if v.own ? ${id} then [ v.own.${id} ] else [ ]) vs);
+      held = v: v.includes.held.${id} or [ ];
+      none = {
+        found = [ ];
+        reached = [ ];
+      };
+      go =
+        vs: steps:
+        let
+          s = head steps;
+          moved = filter (v: v != null) (map (v: v.keys.${s} or null) vs);
+        in
+        if vs == [ ] || !(builtins.any builtins.isString steps) then
+          none
+        else if s == "includes" then
+          let
+            hs = concatLists (map held vs);
+            next = if hs != [ ] then map (h: h.view) hs else concatLists (map (v: v.includes.views) vs);
+            r = go next (builtins.tail steps);
+          in
+          {
+            found = map (h: h.r) hs ++ r.found;
+            reached = next ++ r.reached;
+          }
+        else if builtins.isString s then
+          let
+            r = go (moved ++ filter (v: (v.keys.${s} or null) == null) vs) (builtins.tail steps);
+          in
+          {
+            found = own moved ++ r.found;
+            reached = moved ++ r.reached;
+          }
+        else
+          go vs (builtins.tail steps);
+      start = view.${head pos} or null;
+      r = go [ start ] (builtins.tail pos);
+      found = own [ start ] ++ r.found;
+      reached = [ start ] ++ r.reached;
+      coerced =
+        i:
+        if i < 0 then
+          [ ]
+        else
+          let
+            hs = held (elemAt reached i);
+          in
+          if hs != [ ] then map (h: h.r) hs else coerced (i - 1);
+    in
+    if pos == [ ] || start == null then
+      [ ]
+    else if found != [ ] then
+      found
+    else
+      coerced (length reached - 1);
+
+  # Every identifier a root table registers (the `lambdas` the framework reads): the loader's records at
+  # the root, and every record in every aspect table the root's collections reach, once each. An
+  # instrument's read, never the door's: it forces every aspect, and so every condition on the way.
+  # The records under one identifier unite by the door's rule (`==`), and differing ones are refused by
+  # name: a record that names its own key passes the mount's check, so this is where it is caught.
+  registrations =
+    l:
+    let
+      isAddress = k: builtins.substring 0 1 k == "[";
+      ids =
+        v:
+        map (k: {
+          name = k;
+          value = v.own.${k};
+        }) (attrNames v.own)
+        ++ concatLists (map ids (v.includes.views ++ filter (x: x != null) (builtins.attrValues v.keys)));
+      inTables = concatLists (
+        map (k: concatLists (map ids (filter (x: x != null) (builtins.attrValues l.${k})))) (
+          filter isAddress (attrNames l)
+        )
+      );
+      byId = builtins.zipAttrsWith (_: rs: rs) (
+        map (k: { ${k} = l.${k}; }) (filter (k: !(isAddress k)) (attrNames l))
+        ++ map (p: { ${p.name} = p.value; }) inTables
+      );
+      dup = filter (k: builtins.any (r: r != head byId.${k}) byId.${k}) (attrNames byId);
+    in
+    if dup != [ ] then
+      throw "gen-rules.registrations: duplicate-registration: ${builtins.toJSON dup} are registered by records that differ"
+    else
+      attrNames byId;
+
   # S1 arm (a): the names under which `cnf.aspectModules` mounts gen-rules' registration table inside the
   # aspect submodule (`lambdasMount`). Read here, from the cnf both sites hand the walk, so the loader and
   # the door carry the same key by construction.
@@ -512,6 +655,11 @@ in
 {
   inherit
     walk
+    addressKey
+    prefixKeys
+    viewOf
+    tableAt
+    registrations
     mountKey
     mountsOf
     patternOf

@@ -13,6 +13,7 @@
         "lambdas"
         "lambdasMount"
         "mkApply"
+        "registrations"
       ];
     };
   };

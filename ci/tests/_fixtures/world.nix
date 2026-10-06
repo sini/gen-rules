@@ -158,6 +158,8 @@ in
   # `tryEval` over a full force: a cell asserting THAT something refuses (the message is the error
   # plane's, `ci/tests-error.nix`).
   throws = v: !(builtins.tryEval (builtins.deepSeq v v)).success;
+  # Every registration identifier, once: gen-rules' own enumerator (an instrument's read).
+  registered = R.registrations;
   # A door node's form: its condition's former, the coordinates it covers, its body's former, and the
   # reads decoded from its registration identifier.
   form = n: {

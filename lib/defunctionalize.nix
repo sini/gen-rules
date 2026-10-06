@@ -167,9 +167,12 @@ let
                 };
             }
         );
-      # Every aspect's table is a DEFINITION of the root table, so the root option's own merge unites
-      # them and decides a duplicate id. Keyed, so the module system collects it once however many
-      # modules this loader lowered.
+      # The root reaches every aspect's table through the aspect collection it lives in: one entry per
+      # collection, keyed by the collection's path (`walk.addressKey`, never an identifier's spelling),
+      # holding the collection's view (`walk.viewOf`). The names are the loader's own paths, so reading
+      # the root forces no aspect; the door reads an aspect's table along the registration's own site
+      # (`walk.tableAt`), so it forces exactly the positions the merge forces to reach that door node.
+      # Keyed, so the module system collects it once however many modules this loader lowered.
       union = {
         key =
           "gen-rules.lambdasMount:"
@@ -182,7 +185,12 @@ let
           (
             { config, ... }:
             setAt lambdasPath (
-              merge.mkMerge (builtins.concatMap (p: tablesUnder cnf mount (getAt p config)) aspectPaths)
+              listToAttrs (
+                map (p: {
+                  name = W.addressKey p;
+                  value = W.viewOf cnf mount (getAt p config);
+                }) aspectPaths
+              )
             )
           )
         ];
@@ -256,8 +264,10 @@ let
           regs = listToAttrs (
             map (x: {
               name = x.id;
+              # the record names the identifier it is registered under, the mark of the loader's own
+              # records that an aspect table admits (`lambdasMount`)
               value = {
-                inherit (x) fn codomain;
+                inherit (x) id fn codomain;
               };
             }) done.found
           );
@@ -329,42 +339,24 @@ let
         t:
         let
           bad = builtins.filter (id: !(isAttrs t.${id} && t.${id} ? fn && t.${id} ? codomain)) (attrNames t);
+          # a record the loader made names the identifier it registered it under; one that does not was
+          # written by hand, and is refused wherever its table is read (ADR-0025 item 1: refused by
+          # name, never dropped). The name is a well-formedness check, not provenance: anyone can write
+          # it, so a record that names its key and differs is refused where records unite (the door,
+          # `walk.registrations`)
+          foreign = builtins.filter (id: (t.${id}.id or null) != id) (attrNames t);
         in
-        if bad == [ ] then
-          t
+        if bad != [ ] then
+          throw "gen-rules.lambdasMount: `${name}` is gen-rules' registration table, mounted inside the aspect submodule, and it holds ${toJSON bad}, which are not registration records (`{ fn; codomain; }`): a nested aspect cannot be named `${name}`. Rename the aspect, or mount the table under another name."
+        else if foreign != [ ] then
+          throw "gen-rules.lambdasMount: `${name}` holds records under ${toJSON foreign} that gen-rules' loader did not make: an aspect's registration table holds only the records the loader registers for the closures it lowers (each names its identifier), or carries with an aspect returned by reference. Write the closure at an aspect position, and the loader registers it."
         else
-          throw "gen-rules.lambdasMount: `${name}` is gen-rules' registration table, mounted inside the aspect submodule, and it holds ${toJSON bad}, which are not registration records (`{ fn; codomain; }`): a nested aspect cannot be named `${name}`. Rename the aspect, or mount the table under another name.";
+          t;
     };
   };
 
   getAt = p: v: foldl' (acc: k: acc.${k} or { }) v p;
 
-  # Every aspect table under an aspects value, one list element per aspect node, at the positions the
-  # lowering wraps at (a freeform nested key and each `includes` element; `keyCategory`). The table key
-  # itself is never walked.
-  tablesUnder =
-    cnf: t:
-    let
-      isNode = v: isAttrs v && !(v.__guard or false) && v ? ${t};
-      of =
-        a:
-        [ a.${t} ]
-        ++ builtins.concatMap (
-          k:
-          let
-            v = a.${k};
-          in
-          if k == t || (k != "includes" && aspects.keyCategory cnf k != null) then
-            [ ]
-          else if k == "includes" && isList v then
-            builtins.concatMap (e: if isNode e then of e else [ ]) v
-          else if isNode v then
-            of v
-          else
-            [ ]
-        ) (attrNames a);
-    in
-    as: builtins.concatMap (n: if isNode as.${n} then of as.${n} else [ ]) (attrNames as);
 in
 {
   inherit

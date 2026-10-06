@@ -38,6 +38,7 @@ let
     framework
     isGuard
     guardsIn
+    registered
     classMarker
     out
     run
@@ -247,7 +248,7 @@ in
             a = f.r.config.aspects.${name};
           in
           {
-            registrations = builtins.length (builtins.attrNames f.r.config.lambdas);
+            registrations = builtins.length (m.registered f.r.config.lambdas);
             guards = builtins.length (guardsIn a);
             nixos = classMarker a.nixos;
           };
@@ -312,6 +313,7 @@ in
             [
               "codomain"
               "fn"
+              "id"
             ]
           ];
           forces = true;
@@ -372,9 +374,15 @@ in
           in
           {
             fired = if w.throws fired then "refused" else fired;
-            # the refusal is the root table's own conflict over the one id, never another throw
+            # a load-time pair conflicts in the root table; an in-result pair lives in two aspect
+            # tables, which the door unites on the closure's position (`duplicate-registration`), and
+            # the enumerator unites by the door's `==`, so it splits as the door does
             root = !(w.throws r.config.lambdas);
-            ids = builtins.length (builtins.attrNames r.config.lambdas);
+            ids =
+              if w.throws (m.registered r.config.lambdas) then
+                "refused"
+              else
+                builtins.length (m.registered r.config.lambdas);
           };
       in
       {
@@ -394,13 +402,165 @@ in
                 else
                   "refused";
               root = lambdaEnvEq;
-              ids = 1;
+              ids = if lambdaEnvEq then 1 else "refused";
             };
           in
           {
             loadTime = arm;
-            inResult = arm;
+            inResult = arm // {
+              root = true;
+            };
           };
+      };
+
+    # Design Section 3 (b), "it adds no strictness" (den-hoag-1wdng): firing one aspect's door node
+    # reads that aspect's table along the closure's own position, never another aspect's `includes`.
+    # A throwing condition on `main`'s include is not forced by firing `side`, whether `side`'s
+    # closure was met at load or in a module function's result; reading `main` itself does force it
+    # (the instrument sees the throw). A record written by hand under the same id at another aspect's
+    # table is refused by name wherever that table is read; firing `main` never reads it.
+    test-firing-one-aspect-forces-no-other-aspects-include-condition =
+      let
+        side = inResult: {
+          key = "side";
+          config.aspects.side =
+            if inResult then
+              { config, ... }: { includes = [ ({ thimble, ... }: { description = "S-${thimble}"; }) ]; }
+            else
+              { includes = [ ({ thimble, ... }: { description = "S-${thimble}"; }) ]; };
+        };
+        main = {
+          key = "main";
+          config.aspects.main.includes = merge.mkIf (throw "main's include condition was forced") [
+            { description = "p"; }
+          ];
+        };
+        fireSide =
+          mods:
+          let
+            f = framework { modules = mods; };
+            v = f.fire ctx (builtins.head (guardsIn f.r.config.aspects.side));
+          in
+          if w.throws v then "THROWS" else v.description;
+        readMain =
+          let
+            f = framework {
+              modules = [
+                (side false)
+                main
+              ];
+            };
+          in
+          w.throws f.r.config.aspects.main.includes;
+        forged =
+          let
+            id = builtins.toJSON {
+              declared = {
+                reads = [ "thimble" ];
+                site = builtins.toJSON [
+                  "s1:0"
+                  [
+                    "aspects"
+                    "main"
+                    "includes"
+                    0
+                  ]
+                ];
+              };
+            };
+            f = framework {
+              modules = [
+                { aspects.main = shared; }
+                {
+                  aspects.z.lambdas.${id} = {
+                    fn = { thimble, ... }: { description = "forged-${thimble}"; };
+                    codomain = "guard";
+                  };
+                }
+              ];
+            };
+          in
+          let
+            v = map (n: (f.fire ctx n).description) (guardsIn f.r.config.aspects.main);
+          in
+          {
+            # reading `z`'s table refuses the hand-written record by name (`lambdasMount`)
+            read = w.throws (registered f.r.config.lambdas);
+            # firing `main` reads only `main`'s own position, where the genuine record is
+            fire = if w.throws v then "THROWS" else v;
+          };
+      in
+      {
+        expr = {
+          loadTime = fireSide [
+            (side false)
+            main
+          ];
+          inResult = fireSide [
+            (side true)
+            main
+          ];
+          inherit readMain forged;
+        };
+        expected = {
+          loadTime = "S-x";
+          inResult = "S-x";
+          readMain = true;
+          forged = {
+            read = true;
+            fire = [ "T-x" ];
+          };
+        };
+      };
+
+    # gen-aspects coerces a module function written beside a second definition of its aspect into an
+    # element of that aspect's `includes` (T4, `../../lib/walk.nix` `tableAt`), so its closures register
+    # in the element's table while their sites read the aspect. The door finds them there, for a class
+    # key and a nested aspect alike, and doing so reads only the coerced aspect's own `includes`: a
+    # throwing condition on another aspect's include is not forced.
+    test-a-coerced-module-functions-closure-is-found-in-its-include-element =
+      let
+        coord = { bobbin, pkgs, ... }: { marker = "delivered"; };
+        second = a: { aspects.${a}.description = "second"; };
+        fireIn =
+          mods: a: pick:
+          let
+            f = framework { modules = mods; };
+            o = f.fire ctx (builtins.head (pick f.r.config.aspects.${a}));
+          in
+          if w.throws o then "THROWS" else builtins.attrNames o;
+      in
+      {
+        expr = {
+          classKey = fireIn [
+            { aspects.main = { config, ... }: { nixos = coord; }; }
+            (second "main")
+          ] "main" guardsIn;
+          nested = fireIn [
+            { aspects.main = { config, ... }: { sub.includes = [ inner ]; }; }
+            (second "main")
+          ] "main" (a: guardsIn (builtins.head a.includes).sub);
+          otherCondition = fireIn [
+            { aspects.side = { config, ... }: { nixos = coord; }; }
+            (second "side")
+            {
+              aspects.main.includes = merge.mkIf (throw "main's include condition was forced") [
+                { description = "p"; }
+              ];
+            }
+          ] "side" guardsIn;
+        };
+        expected = {
+          classKey = [
+            "includes"
+            "nixos"
+          ];
+          nested = [ "description" ];
+          otherCondition = [
+            "includes"
+            "nixos"
+          ];
+        };
       };
 
     test-the-door-is-fed-inside-the-one-evaluation = {
