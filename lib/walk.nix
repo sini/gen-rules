@@ -212,9 +212,12 @@ let
   # into an element of that aspect's `includes`: so where no table on `pos` holds `id`, the `includes`
   # elements of the aspects reached are asked, the deepest aspect first, and the first that holds `id`
   # answers. A lookup forces the aspects along `pos` and the `includes` lists on it, and an aspect's
-  # `includes` off it only when the closure's own function sits there.
-  tableAt =
-    view: pos: id:
+  # `includes` off it only when the closure's own function sits there. `tableAtOf true` is the lookup
+  # for a load-time id, whose record the root holds: it reads only the tables `pos` names, with no
+  # coerced home, and past an `includes` list holding no record of `id` it follows no element.
+  tableAt = tableAtOf false;
+  tableAtOf =
+    loadTime: view: pos: id:
     let
       own = vs: concatLists (map (v: if v.own ? ${id} then [ v.own.${id} ] else [ ]) vs);
       held = v: v.includes.held.${id} or [ ];
@@ -233,7 +236,13 @@ let
         else if s == "includes" then
           let
             hs = concatLists (map held vs);
-            next = if hs != [ ] then map (h: h.view) hs else concatLists (map (v: v.includes.views) vs);
+            next =
+              if hs != [ ] then
+                map (h: h.view) hs
+              else if loadTime then
+                [ ]
+              else
+                concatLists (map (v: v.includes.views) vs);
             r = go next (builtins.tail steps);
           in
           {
@@ -266,7 +275,7 @@ let
     in
     if pos == [ ] || start == null then
       [ ]
-    else if found != [ ] then
+    else if found != [ ] || loadTime then
       found
     else
       coerced (length reached - 1);
@@ -659,6 +668,7 @@ in
     prefixKeys
     viewOf
     tableAt
+    tableAtOf
     registrations
     mountKey
     mountsOf

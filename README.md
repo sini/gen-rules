@@ -36,6 +36,7 @@ would change. **Flagged for owner review:** the `toXML` dependency.
 | lower closures at the framework's loader | `defunctionalize { cnf; declared ? null; key; lambdasPath; aspectPaths ? [ ]; rulePaths ? [ ]; }` |
 | declare the registration table           | `lambdas`, an option the framework mounts at `lambdasPath`                                        |
 | mount the table inside each aspect       | `lambdasMount name`, a module the framework puts in `cnf.aspectModules`                           |
+| enumerate every registration (a read)    | `registrations lambdas`, the ids once each; forces every aspect, so never the door's path         |
 | build the door                           | `mkApply { lambdas; cnf; declared ? null; entityKinds ? null; }`                                  |
 | write a conditional edge                 | `conditionalEdge { head; when; unless; relata; label ? null; }`                                   |
 | write an abnormality                     | `abnormality { head; when; relata; }`                                                             |
@@ -78,9 +79,12 @@ abnormality defeats.
   the registration table inside gen-aspects' aspect submodule (`lambdasMount` in `cnf.aspectModules`,
   the one cnf handed to `mkAspectSchema`, `defunctionalize` and `mkApply`). The function is wrapped, and
   when gen-merge applies it, its result is lowered at the aspect it was written at and its closures
-  register in that aspect's table. Each aspect's table is a definition of the root table, so the module
-  system's own merge unites them and refuses a duplicate id by name. A loader over aspect positions
-  without the mount is refused by name (`ci/tests/s1.nix`).
+  register in that aspect's table. The root table holds the loader's records by id and one entry per
+  aspect collection, and the door reads a closure's table along the closure's own position, so firing
+  one closure forces no other aspect's include condition; a load-time closure, whose record the root
+  holds, reads only the tables its site names. Records found under one id unite by `==`, and differing
+  ones are refused by name (`duplicate-registration`). A loader over aspect positions without the
+  mount is refused by name (`ci/tests/s1.nix`).
 - **It does not serve a closure written in the result of a module function that a closure returned.**
   The door holds neither the module arguments that closure is created under nor a table to register
   it in, so it is refused by name when the module system applies the function. A result holding no

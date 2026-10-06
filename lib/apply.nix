@@ -191,7 +191,7 @@ let
           # a closure the loader met is registered at the root by its id; one met in a module function's
           # result, in the table of the aspect the module system applied it in, read along its site
           # (S1 arm (a)). Both are read on every lookup, so a record on the closure's own position is
-          # read even when the root holds the id
+          # read even when the root holds the id, along only the tables its site names
           sitePos =
             let
               s = root.declared.site;
@@ -205,7 +205,7 @@ let
               let
                 c = fromJSON (head collections);
               in
-              W.tableAt lambdas.${head collections} (builtins.genList (
+              W.tableAtOf (lambdas ? ${rootId}) lambdas.${head collections} (builtins.genList (
                 i: builtins.elemAt sitePos (i + builtins.length c)
               ) (builtins.length sitePos - builtins.length c)) rootId;
           # the root's record and the tables reached unite as one merge: one record, equal records, or
