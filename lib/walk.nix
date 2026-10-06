@@ -176,9 +176,19 @@ let
   viewOf =
     cnf: t: c:
     let
-      isNode = v: isAttrs v && !(v.__guard or false) && v ? ${t};
+      # A guard carrier is a node through its coerced fragments: each holds the `includes` element its
+      # module function was applied in, the home of that function's tables (den-hoag-cgobz). Its own
+      # table is empty, since its door nodes are load-time records the root holds, and a plain
+      # fragment is a raw definition no `lambdasMount` typed, so it is never entered.
+      isCarrier = v: isAttrs v && (v.__guard or false) && v ? fragments;
+      isNode = v: isCarrier v || (isAttrs v && !(v.__guard or false) && v ? ${t});
       nested = k: k != t && k != "includes" && aspects.keyCategory cnf k == null;
-      nodeView = a: {
+      nodeView = v: nodeViewOf (if isCarrier v then carrierAspect v else v);
+      carrierAspect = v: {
+        ${t} = { };
+        includes = concatLists (map (f: if f.coerced or false then f.body.includes else [ ]) v.fragments);
+      };
+      nodeViewOf = a: {
         own = a.${t};
         keys = mapAttrs (k: v: if nested k && isNode v then nodeView v else null) a;
         includes =
