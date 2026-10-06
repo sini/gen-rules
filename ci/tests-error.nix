@@ -375,6 +375,63 @@ in
     # den-hoag-crk5e: the lift moves a class-key closure into `includes`; an override or order property
     # would rank it there against other definitions, so it is refused by name, the wrapper's `_type` named.
   }
+  # den-hoag-iy9qh R4: a functor whose pattern cannot be read (its `__functor` yields no lambda, or its
+  # `__functionArgs` is not a map to Booleans) is refused by name at a class key, at the loader (its
+  # class value and its includes forced, trap 371befb3) and in a door's output, never an uncatchable abort.
+  // builtins.listToAttrs (
+    builtins.concatMap
+      (c: [
+        {
+          name = "test-a-malformed-functor-${c.name}-at-a-class-key-is-refused-by-name";
+          value = {
+            expr =
+              let
+                main = (s1.framework { modules = [ { aspects.main.nixos = c.value; } ]; }).r.config.aspects.main;
+              in
+              builtins.deepSeq [ main.nixos (s1.guardsIn main) ] null;
+            expectedError.msg = exactly "gen-rules.defunctionalize: s1:0 at [\"aspects\",\"main\",\"nixos\"]: a function at a class key that is neither a module function of `cnf.moduleArgs` nor a closure over declared coordinates; declare a module function of `cnf.moduleArgs`, or a closure at an aspect position";
+          };
+        }
+        {
+          name = "test-a-malformed-functor-${c.name}-at-a-class-key-in-a-door-output-is-refused-by-name";
+          value = {
+            expr = builtins.deepSeq (s1Fire [
+              { aspects.main.includes = [ ({ thimble, ... }: { nixos = c.value; }) ]; }
+            ] s1.ctx) null;
+            expectedError.msg = exactly "gen-aspects.guard: aspect `main.includes.[definition 1-entry 1]`: guard-codomain: the closure's output holds a function at a class key that is neither a module function of `cnf.moduleArgs` nor a closure over declared coordinates at [\"nixos\"]";
+          };
+        }
+      ])
+      [
+        {
+          name = "returning-an-integer";
+          value.__functor = _: 5;
+        }
+        {
+          name = "whose-functor-is-not-a-function";
+          value.__functor = 5;
+        }
+        {
+          name = "with-integer-functionargs";
+          value = {
+            __functionArgs = 5;
+            __functor = _: { bobbin, ... }: { };
+          };
+        }
+        {
+          name = "with-non-boolean-functionargs";
+          value = {
+            __functionArgs.bobbin = 5;
+            __functor = _: { bobbin, ... }: { };
+          };
+        }
+        {
+          # Nix applies it, but nixpkgs' one-level `lib.isFunction` does not call it a function
+          name = "yielding-a-functor";
+          value.__functor = _: { __functor = _: { bobbin, ... }: { }; };
+        }
+      ]
+  )
   // builtins.listToAttrs (
     map
       (c: {

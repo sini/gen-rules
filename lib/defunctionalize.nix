@@ -285,11 +285,11 @@ let
             _file = m;
             imports = [ (lowerModule at (toString m) (import m)) ];
           }
-        else if W.isCallable m then
+        else if W.isCallable m && (W.patternOf m).kind != "unreadable" then
           # A top-level module function: wrapped, never applied here; the wrapper keeps its formals,
           # so gen-merge applies it by them (precondition unit 0, den-hoag-...-u6lf8).
           {
-            __functionArgs = builtins.functionArgs m;
+            __functionArgs = (W.patternOf m).formals;
             __functor = _: args: lowerModule at k (m args);
           }
         else if isAttrs m && isFullForm m then

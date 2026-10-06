@@ -59,15 +59,35 @@ let
   patternOf =
     f:
     let
-      raw = if isAttrs f then f.__functor f else f;
+      # read as nixpkgs' `lib.functionArgs` reads it, and total as gen-aspects' `canTake` is: a functor whose
+      # `__functor` does not yield a lambda, or whose `__functionArgs` is not a map to Booleans, is unreadable
+      raw =
+        if !(isAttrs f) then
+          f
+        else if isFunction f.__functor then
+          f.__functor f
+        else
+          null;
       formals = if isAttrs f then f.__functionArgs or (functionArgs raw) else functionArgs f;
+      readable =
+        isFunction raw && isAttrs formals && all (b: b == true || b == false) (builtins.attrValues formals);
       xml = toXML raw;
       hasRe = re: match re xml != null;
     in
-    if formals != { } then
+    if !readable then
+      {
+        kind = "unreadable";
+        formals = { };
+        required = [ ];
+        reads = [ ];
+      }
+    else if formals != { } then
       {
         kind = "formals";
         inherit formals;
+        # a closed pattern accepts exactly its formals; an open one (ellipsis, or a functor over a bare
+        # name) accepts any wider set
+        closed = !(hasRe ".*<varpat .*" || hasRe ".*<attrspat[^>]*ellipsis=\"1\".*");
         required = filter (n: !formals.${n}) (attrNames formals);
         reads = attrNames formals;
       }
@@ -576,6 +596,7 @@ let
                 {
                   inherit pos coords;
                   fn = v;
+                  pattern = p;
                   wrap = x: x;
                 }
               ]
@@ -593,7 +614,10 @@ let
       liftOf =
         k: l:
         let
-          margs = removeAttrs (functionArgs l.fn) l.coords;
+          margs = removeAttrs l.pattern.formals l.coords;
+          # a closed pattern is handed exactly its formals (den-hoag-t5hli arm (a)); an open one the
+          # module system's arguments, as gen-merge hands any module function
+          give = args: if l.pattern.closed then builtins.intersectAttrs l.pattern.formals args else args;
         in
         {
           __functionArgs = genAttrs l.coords (_: false);
@@ -602,7 +626,7 @@ let
               imports = [
                 {
                   __functionArgs = margs;
-                  __functor = _: m: l.fn (m // genAttrs l.coords (n: ctx.${n}));
+                  __functor = _: m: l.fn (give (m // genAttrs l.coords (n: ctx.${n})));
                 }
               ];
             };
