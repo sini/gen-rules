@@ -22,6 +22,13 @@ let
   merge = genMerge;
   F = modules: m.framework { inherit modules; };
   regs = mods: builtins.length (m.registered (F mods).r.config.lambdas);
+  # a framework aspect module adding an include to the aspect named `main`, mounted beside `lambdasMount`
+  regsWith =
+    extra: modules:
+    builtins.length (m.registered (m.framework { inherit modules extra; }).r.config.lambdas);
+  addCommon = { name, ... }: {
+    includes = merge.mkIf (name == "main") [ { description = "COMMON"; } ];
+  };
   # Fire `main`, then every door node in its output, descending into include elements.
   served =
     mods:
@@ -196,6 +203,30 @@ in
           "Aspect [definition 2-entry 1]"
           "B-b"
         ];
+      };
+    };
+
+    # G8: an aspect module's own `includes` contribution does not displace the carrier's elements
+    test-g8-framework-include-leaves-the-carriers-elements = {
+      expr = {
+        carrier =
+          regsWith
+            [ addCommon ]
+            [
+              x
+              y
+            ];
+        control =
+          regsWith
+            [ addCommon ]
+            [
+              x
+              yPlain
+            ];
+      };
+      expected = {
+        carrier = 2;
+        control = 2;
       };
     };
 
