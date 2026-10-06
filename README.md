@@ -81,7 +81,12 @@ abnormality defeats.
   register in that aspect's table. Each aspect's table is a definition of the root table, so the module
   system's own merge unites them and refuses a duplicate id by name. A loader over aspect positions
   without the mount is refused by name (`ci/tests/s1.nix`).
-- **It does not lower `__functor` aspects.** That form is the framework's vocabulary.
+- **It does not serve a closure written in the result of a module function that a closure returned.**
+  The door holds neither the module arguments that closure is created under nor a table to register
+  it in, so it is refused by name when the module system applies the function. A result holding no
+  closure is served (`ci/tests/module-fn-shapes.nix`).
+- **It does not lower `__functor` aspects.** That form is the framework's vocabulary. A closure that
+  returns one is refused by name.
 - **It runs no head analysis.** The refusal for an over-approximated door rule (`null` binds or
   suppresses) belongs to the first analysis that reads heads, and no such analysis exists.
 - **It solves nothing.** The patterns emit declarations; gen-program builds the program and
