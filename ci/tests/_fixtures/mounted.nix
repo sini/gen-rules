@@ -33,13 +33,14 @@ let
     {
       modules,
       closed ? false,
+      extra ? [ ],
     }:
     let
       cnf0 = {
         entityKinds = if closed then D else null;
         inherit keySemantics;
         inherit (w) moduleArgs;
-        aspectModules = [ (R.lambdasMount "lambdas") ];
+        aspectModules = [ (R.lambdasMount "lambdas") ] ++ extra;
       };
       declared = if closed then D else null;
       schema = aspects.mkAspectSchema cnf0;
