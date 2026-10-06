@@ -401,5 +401,39 @@ in
           wrap = w.merge.mkBefore;
         }
       ]
+  )
+  # den-hoag-p5k3k (crk5e P-3): the same closure in a door's output is refused by the guard codomain, at
+  # its position in the output.
+  // builtins.listToAttrs (
+    map
+      (c: {
+        name = "test-a-class-key-closure-under-${c.ctor}-in-a-door-output-is-refused-by-name";
+        value = {
+          expr =
+            let
+              f = s1.framework {
+                modules = [
+                  {
+                    aspects.main.includes = [ ({ thimble, ... }: { nixos = c.wrap ({ bobbin, pkgs, ... }: { }); }) ];
+                  }
+                ];
+              };
+            in
+            builtins.deepSeq (f.fire s1.ctx (builtins.head (s1.guardsIn f.r.config.aspects.main))) null;
+          expectedError.msg = exactly "gen-aspects.guard: aspect `main.includes.[definition 1-entry 1]`: guard-codomain: the closure's output holds a closure over coordinates at a class key under a property wrapper of `_type = \"${c.type}\"` (`mkOverride`/`mkForce`/`mkDefault`, or `mkOrder`/`mkBefore`/`mkAfter`): the lift moves the definition into `includes`, where that property would rank it against other definitions than the ones it was written beside at [\"nixos\"]";
+        };
+      })
+      [
+        {
+          ctor = "mkForce";
+          type = "override";
+          wrap = w.merge.mkForce;
+        }
+        {
+          ctor = "mkBefore";
+          type = "order";
+          wrap = w.merge.mkBefore;
+        }
+      ]
   );
 }

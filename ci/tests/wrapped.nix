@@ -74,6 +74,35 @@ let
         ]).config.c;
     in
     if c == null then "none" else classMarker c;
+  # den-hoag-p5k3k: the door's output read element by element through every wrapper on the way to its
+  # `includes` (the lift's own `mkMerge` included): a lifted node that fired reads its class marker, an
+  # aspect its description, a node the door did not reach "unreached"
+  doorLift =
+    out:
+    let
+      f = framework { modules = [ (inc [ ({ thimble, ... }: out) ]) ]; };
+      flat =
+        v:
+        if builtins.isList v then
+          v
+        else if (v._type or null) == "merge" then
+          builtins.concatMap flat v.contents
+        else if v ? _type then
+          flat v.content
+        else
+          [ v ];
+      body = o: if o ? _type then body (o.content or (builtins.head o.contents)) else o;
+      el =
+        x:
+        if m.isGuard x then
+          "unreached"
+        else if x ? nixos then
+          asClass x.nixos
+        else
+          x.description;
+      read = o: map el (flat (o.includes or [ ])) ++ (if o ? sub then [ (read o.sub) ] else [ ]);
+    in
+    read (body (f.fire ctx (builtins.head (guardsIn f.r.config.aspects.main))));
   oneClass =
     mod:
     let
@@ -369,6 +398,71 @@ in
           table = 1;
         };
       };
+
+    # den-hoag-p5k3k: a class-key closure in the door's output is lifted into a nested door node, which
+    # gen-aspects fires at the scope position the door keyed it by: the address the node stands at in
+    # the lowered output, after the aspect's own `includes` elements, and inside the lift's `mkMerge`
+    # beside a wrapped `includes` (whose own nested closures stand at `contents` 0 there).
+    test-a-door-site-class-key-closure-is-lifted-at-its-address = {
+      expr = {
+        coordinateOnly = doorLift { nixos = { bobbin, ... }: { marker = "co-${bobbin}"; }; };
+        moduleArg = doorLift { nixos = coordClass; };
+        mkIf = doorLift { nixos = merge.mkIf true coordClass; };
+        mkIfFalse = doorLift { nixos = merge.mkIf false coordClass; };
+        mkMerge = doorLift {
+          nixos = merge.mkMerge [
+            coordClass
+            ({ pkgs, ... }: { })
+          ];
+        };
+        # two distinct markers, so the lifted nodes' order among themselves is read: written order
+        twoLifts = doorLift {
+          nixos = merge.mkMerge [
+            ({ bobbin, ... }: { marker = "first-${bobbin}"; })
+            ({ bobbin, pkgs, ... }: { marker = "second-${bobbin}"; })
+          ];
+        };
+        afterNested = doorLift {
+          includes = [ inner2 ];
+          nixos = coordClass;
+        };
+        wrappedIncludes = doorLift {
+          includes = merge.mkIf true [ inner2 ];
+          nixos = coordClass;
+        };
+        wrappedForce = doorLift {
+          includes = merge.mkForce [ inner2 ];
+          nixos = coordClass;
+        };
+        wholeIf = doorLift (merge.mkIf true { nixos = coordClass; });
+        nestedAspect = doorLift { sub.nixos = coordClass; };
+      };
+      expected = {
+        coordinateOnly = [ "co-b" ];
+        moduleArg = [ "delivered" ];
+        mkIf = [ "delivered" ];
+        mkIfFalse = [ "none" ];
+        mkMerge = [ "delivered" ];
+        twoLifts = [
+          "first-b"
+          "second-b"
+        ];
+        afterNested = [
+          "B-b"
+          "delivered"
+        ];
+        wrappedIncludes = [
+          "B-b"
+          "delivered"
+        ];
+        wrappedForce = [
+          "B-b"
+          "delivered"
+        ];
+        wholeIf = [ "delivered" ];
+        nestedAspect = [ [ "delivered" ] ];
+      };
+    };
 
     test-a-wrapper-in-the-door-output-is-an-address = {
       expr = {

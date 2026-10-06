@@ -599,9 +599,34 @@ let
           };
         };
 
+      # In the door's output (mode.strict) a closure's position is the address it stands at in the
+      # lowered output, which the door's scope is keyed by (design Section 3 (f), G5) and gen-aspects
+      # reads back there; at the loader it is the declaration's site, where the closure was written
+      # (Section 3 (d)). The two differ only where a lift moves a definition: the lifted node stands in
+      # `includes`, after the aspect's own elements, and a wrapped `includes` beside it stands inside
+      # the merge the lift adds (`contents` 0, the lifted nodes `contents` 1).
       attrsAt =
         pos: v:
         let
+          addressed = mode.strict or false;
+          inc = v.includes or [ ];
+          lifted = builtins.concatMap (k: map (l: { inherit k l; }) ws.${k}.lifts) classKeys;
+          landing =
+            n:
+            if isList inc then
+              pos
+              ++ [
+                "includes"
+                (length inc + n)
+              ]
+            else
+              pos
+              ++ [
+                "includes"
+                "contents"
+                1
+                n
+              ];
           ws = mapAttrs (
             k: c:
             let
@@ -612,7 +637,19 @@ let
               # entered (its closures are registrations already).
               leaf c
             else if k == "includes" then
-              includesAt (pos ++ [ k ]) c
+              includesAt (
+                pos
+                ++ [ k ]
+                ++ (
+                  if addressed && !(isList c) && lifted != [ ] then
+                    [
+                      "contents"
+                      0
+                    ]
+                  else
+                    [ ]
+                )
+              ) c
             else if cat == "class" then
               classAt (pos ++ [ k ]) c
             else if cat == null then
@@ -623,7 +660,13 @@ let
               leaf c
           ) v;
           classKeys = filter (k: category k == "class") (attrNames v);
-          liftWalks = builtins.concatMap (k: map (l: closureAt l.pos (liftOf k l)) ws.${k}.lifts) classKeys;
+          liftWalks = genList (
+            n:
+            let
+              x = elemAt lifted n;
+            in
+            closureAt (if addressed then landing n else x.l.pos) (liftOf x.k x.l)
+          ) (length lifted);
           base = if ws ? includes then ws.includes.value else [ ];
           extra = map (w: w.value) liftWalks;
         in
