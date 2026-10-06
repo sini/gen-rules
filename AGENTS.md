@@ -28,7 +28,7 @@ applied to its substrate). The root is published **UNAPPLIED** (`flake.nix`: `li
 hub applies it through `gen/lib/hubSubstrate.nix`.
 
 ```json
-["abnormality", "conditionalEdge", "defunctionalize", "lambdas", "mkApply"]
+["abnormality", "conditionalEdge", "defunctionalize", "lambdas", "lambdasMount", "mkApply", "registrations"]
 ```
 
 `ci/tests/surface.nix` asserts that list.
@@ -39,6 +39,8 @@ hub applies it through `gen/lib/hubSubstrate.nix`.
 | ----------------------------------------- | -------------------------------- | ------------------------- |
 | lower at the loader                       | `defunctionalize`                | `lib/defunctionalize.nix` |
 | declare the table                         | `lambdas`                        | `lib/defunctionalize.nix` |
+| mount the table inside each aspect        | `lambdasMount`                   | `lib/defunctionalize.nix` |
+| enumerate every registration (a read)     | `registrations`                  | `lib/walk.nix`            |
 | build the door                            | `mkApply`                        | `lib/apply.nix`           |
 | write a conditional edge / an abnormality | `conditionalEdge`, `abnormality` | `lib/catalogue.nix`       |
 

@@ -2,8 +2,8 @@
 # module function written at an aspect position (`main = { config, ... }: { … }`) registers when the
 # module system applies the function, because the framework mounts gen-rules' `lambdas` inside
 # gen-aspects' aspect submodule (`lambdasMount` in `cnf.aspectModules`), the one cnf the loader and the
-# door read. Every aspect's table is a definition of the root table, so the module system's own merge
-# unites them and refuses a duplicate id by name. These cells read the loader over gen-aspects'
+# door read. The door reads a closure's table along its own position and unites the records it finds
+# with the root's, refusing differing ones by name. These cells read the loader over gen-aspects'
 # REAL aspect schema and fire through the door:
 #
 #   s1a  a closure at `includes` inside the module function: served, as its control is.
@@ -560,6 +560,43 @@ in
             "includes"
             "nixos"
           ];
+        };
+      };
+
+    # A load-time closure's record is in the root table, so its lookup reads only the tables its site
+    # names (`../../lib/walk.nix` `tableAtOf`): firing the closure at `main.includes[0]` does not force
+    # the condition on a sibling element's `includes`, even where that list holds a closure. Its
+    # control, the condition `true`, is served the same.
+    test-a-load-time-closures-lookup-forces-no-sibling-include-condition =
+      let
+        mods = c: [
+          {
+            key = "first";
+            config.aspects.main.includes = [ inner ];
+          }
+          {
+            key = "sibling";
+            config.aspects.main.includes = [
+              { includes = merge.mkIf c [ ({ thimble, ... }: { description = "Z-${thimble}"; }) ]; }
+            ];
+          }
+        ];
+        fireFirst =
+          c:
+          let
+            f = framework { modules = mods c; };
+            o = f.fire ctx (builtins.head f.r.config.aspects.main.includes);
+          in
+          if w.throws o then "THROWS" else o.description;
+      in
+      {
+        expr = {
+          throwing = fireFirst (throw "a sibling's include condition was forced");
+          control = fireFirst true;
+        };
+        expected = {
+          throwing = "T-x";
+          control = "T-x";
         };
       };
 
