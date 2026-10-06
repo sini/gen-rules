@@ -21,7 +21,7 @@
 }:
 let
   T = algebra.term identity.hashIdentity;
-  walk = import ./walk.nix { inherit T aspects; };
+  walk = import ./walk.nix { inherit T aspects merge; };
   door = import ./apply.nix {
     inherit
       T
