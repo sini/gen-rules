@@ -293,5 +293,35 @@ in
       )) null;
       expectedError.msg = exactly "gen-aspects.guard: aspect `main.includes.[definition 1-entry 1]`: guard-codomain: the closure's output holds a `__functor` record at an aspect position (design open item 9: the framework's vocabulary) at []";
     };
-  };
+
+    # den-hoag-crk5e: the lift moves a class-key closure into `includes`; an override or order property
+    # would rank it there against other definitions, so it is refused by name, the wrapper's `_type` named.
+  }
+  // builtins.listToAttrs (
+    map
+      (c: {
+        name = "test-a-class-key-closure-under-${c.ctor}-is-refused-by-name";
+        value = {
+          expr =
+            builtins.deepSeq
+              (s1.framework {
+                modules = [ { aspects.main.nixos = c.wrap ({ bobbin, pkgs, ... }: { }); } ];
+              }).r.config.aspects.main.nixos
+              null;
+          expectedError.msg = exactly "gen-rules.defunctionalize: s1:0 at [\"aspects\",\"main\",\"nixos\"]: a closure over coordinates at a class key under a property wrapper of `_type = \"${c.type}\"` (`mkOverride`/`mkForce`/`mkDefault`, or `mkOrder`/`mkBefore`/`mkAfter`): the lift moves the definition into `includes`, where that property would rank it against other definitions than the ones it was written beside; write the closure at an aspect position (`includes`), with the property on the definition it ranks there";
+        };
+      })
+      [
+        {
+          ctor = "mkForce";
+          type = "override";
+          wrap = w.merge.mkForce;
+        }
+        {
+          ctor = "mkBefore";
+          type = "order";
+          wrap = w.merge.mkBefore;
+        }
+      ]
+  );
 }

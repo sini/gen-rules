@@ -5,7 +5,11 @@
 #
 # Each step returns `{ value; found; bad; }`, all three lazy and sharing one child walk: `value` is the
 # lowered tree, `found` the closures met (position, id, closure), `bad` the functions no rule admits.
-{ T, aspects }:
+{
+  T,
+  aspects,
+  merge,
+}:
 let
   tm = T.term;
   inherit (builtins)
@@ -102,6 +106,59 @@ let
     found = concatLists (map (w: w.found) ws);
     bad = concatLists (map (w: w.bad) ws);
   };
+
+  # The module system's property wrappers, the four `_type`s gen-merge's `priority.nix` constructs
+  # (`mkIf`; `mkMerge`; `mkOverride`, `mkForce`, `mkDefault`, `mkOptionDefault`; `mkOrder`, `mkBefore`,
+  # `mkAfter`): their contents are lowered, never their conditions. A property belongs to the definition
+  # it wraps and is discharged at the option that definition reaches (gen-merge `pushDownProperties`,
+  # `dischargeProperties`), so a lowering that keeps the wrapper and lowers its content commutes with
+  # that push-down. `k` is the step of the position the wrapper stands at: every step that can meet a
+  # wrapper passes itself, so a wrapper is transparent wherever it stands. Any other `_type` is data,
+  # as gen-merge's discharge reads it. The position steps into the wrapper as gen-merge's
+  # `dischargePropertiesAt` addresses it (`"content"` for `if` and `override`; `"contents"` and the
+  # index for `merge`), so a position is an address into the definition at both sites: the door's scope
+  # positions are read as addresses into its output. An `order` wrapper steps `"content"` too, a step
+  # `dischargePropertiesAt` does not take (it hands an order marker on as data, and `sortProperties`
+  # unwraps it); `"content"` still names the field the door's address walks.
+  wrapperAt =
+    pos: v: k:
+    if
+      elem v._type [
+        "if"
+        "override"
+        "order"
+      ]
+    then
+      let
+        w = k (pos ++ [ "content" ]) v.content;
+      in
+      w
+      // {
+        value = v // {
+          content = w.value;
+        };
+      }
+    else if v._type == "merge" then
+      let
+        ws = genList (
+          i:
+          k (
+            pos
+            ++ [
+              "contents"
+              i
+            ]
+          ) (elemAt v.contents i)
+        ) (length v.contents);
+      in
+      combine ws
+      // {
+        value = v // {
+          contents = map (w: w.value) ws;
+        };
+      }
+    else
+      leaf v;
 
   # S1 arm (a): the names under which `cnf.aspectModules` mounts gen-rules' registration table inside the
   # aspect submodule (`lambdasMount`). Read here, from the cnf both sites hand the walk, so the loader and
@@ -216,47 +273,6 @@ let
         else
           leaf v;
 
-      # The module system's property wrappers: their contents are lowered, never their conditions.
-      wrapperAt =
-        pos: v: k:
-        if
-          elem v._type [
-            "if"
-            "override"
-            "order"
-          ]
-        then
-          let
-            w = k pos v.content;
-          in
-          w
-          // {
-            value = v // {
-              content = w.value;
-            };
-          }
-        else if v._type == "merge" then
-          let
-            ws = genList (
-              i:
-              k (
-                pos
-                ++ [
-                  "merge"
-                  i
-                ]
-              ) (elemAt v.contents i)
-            ) (length v.contents);
-          in
-          combine ws
-          // {
-            value = v // {
-              contents = map (w: w.value) ws;
-            };
-          }
-        else
-          leaf v;
-
       # In the door's output (mode.strict) a function anywhere but a class key or an aspect position is
       # outside the guard codomain: gen-aspects would hold it as data.
       dataAt =
@@ -282,6 +298,17 @@ let
         else
           leaf v;
 
+      includesAt =
+        pos: v:
+        if isAttrs v && v ? _type then
+          wrapperAt pos v includesAt
+        else if isList v then
+          listAt pos v
+        else if mode.strict or false then
+          dataAt pos v
+        else
+          leaf v;
+
       listAt =
         pos: xs:
         let
@@ -292,7 +319,74 @@ let
       # At a class key the value is classified and not entered (design Section 3 (b), gate v2 G3). Every
       # field is lazy: the aspect's attribute set never depends on a class value, and a class value is
       # forced only when its own position, or the aspect's `includes` (where a lift lands), is read.
+      #
+      # A wrapper at a class key is lowered through like any other (`wrapperAt`), with one exception the
+      # lift forces. A lift MOVES the class definition into a node in `includes`: `mkIf` is a condition
+      # on that definition alone, so it moves with it, around the class value inside the lifted node's
+      # output; the `includes` entry stays plain, so reading `includes` never forces the condition
+      # (design Section 3 (b): "it adds no strictness"). `mkMerge` is structure: each content lifts as
+      # its own node. An override or order property ranks a definition against its siblings at the
+      # option it is discharged at, and the lift changes that option, so a liftable closure under one is
+      # refused by name. `lifts` holds each lift with `wrap`, the wrappers its class value carries.
       classAt =
+        pos: v:
+        if
+          isAttrs v
+          && v ? _type
+          && elem v._type [
+            "if"
+            "merge"
+            "override"
+            "order"
+          ]
+        then
+          let
+            # the wrapper's own structure, with each lowered content's lifts kept (`wrapperAt` keeps
+            # `found` and `bad` only)
+            ws =
+              if v._type == "merge" then
+                genList (
+                  i:
+                  classAt (
+                    pos
+                    ++ [
+                      "contents"
+                      i
+                    ]
+                  ) (elemAt v.contents i)
+                ) (length v.contents)
+              else
+                [ (classAt (pos ++ [ "content" ]) v.content) ];
+            lifts = concatLists (map (w: w.lifts) ws);
+            ranked = v._type == "override" || v._type == "order";
+            why = "a closure over coordinates at a class key under a property wrapper of `_type = \"${v._type}\"` (`mkOverride`/`mkForce`/`mkDefault`, or `mkOrder`/`mkBefore`/`mkAfter`): the lift moves the definition into `includes`, where that property would rank it against other definitions than the ones it was written beside";
+          in
+          if ranked && lifts != [ ] then
+            {
+              value =
+                if mode.strict or false then
+                  v
+                else
+                  throw "gen-rules.defunctionalize: ${mode.where or ""} at ${builtins.toJSON pos}: ${why}; write the closure at an aspect position (`includes`), with the property on the definition it ranks there";
+              lifts = [ ];
+              found = [ ];
+              bad = [ { inherit pos why; } ];
+            }
+          else
+            combine ws
+            // {
+              value =
+                if v._type == "merge" then
+                  v // { contents = map (w: w.value) ws; }
+                else
+                  v // { content = (head ws).value; };
+              lifts =
+                if v._type == "if" then map (l: l // { wrap = x: v // { content = l.wrap x; }; }) lifts else lifts;
+            }
+        else
+          classLeafAt pos v;
+
+      classLeafAt =
         pos: v:
         let
           fnLike = isCallable v && !(isModuleFn v);
@@ -314,14 +408,17 @@ let
               throw "gen-rules.defunctionalize: ${mode.where or ""} at ${builtins.toJSON pos}: ${why}; declare a module function of `cnf.moduleArgs`, or a closure at an aspect position"
             else
               v;
-          lift =
+          lifts =
             if liftable then
-              {
-                inherit pos coords;
-                fn = v;
-              }
+              [
+                {
+                  inherit pos coords;
+                  fn = v;
+                  wrap = x: x;
+                }
+              ]
             else
-              null;
+              [ ];
           found = [ ];
           bad = if refused then [ { inherit pos why; } ] else [ ];
         };
@@ -329,7 +426,8 @@ let
       # `{ <class> = f; }`, f over coordinates C and module args M, becomes the aspect-position closure
       # `{ C }: { <class>.imports = [ <f with C applied, M kept> ]; }` (gate v2 G3): a door node in
       # `includes`. The class value is aspect content whatever formals remain, so a coordinate-only f
-      # (M empty, not a module function of `cnf.moduleArgs` [gate v1 Q7]) lifts as any other does.
+      # (M empty, not a module function of `cnf.moduleArgs` [gate v1 Q7]) lifts as any other does. A
+      # class-key `mkIf` the closure was written under wraps the class value (`l.wrap`, den-hoag-crk5e).
       liftOf =
         k: l:
         let
@@ -338,12 +436,14 @@ let
         {
           __functionArgs = genAttrs l.coords (_: false);
           __functor = _: ctx: {
-            ${k}.imports = [
-              {
-                __functionArgs = margs;
-                __functor = _: m: l.fn (m // genAttrs l.coords (n: ctx.${n}));
-              }
-            ];
+            ${k} = l.wrap {
+              imports = [
+                {
+                  __functionArgs = margs;
+                  __functor = _: m: l.fn (m // genAttrs l.coords (n: ctx.${n}));
+                }
+              ];
+            };
           };
         };
 
@@ -359,8 +459,8 @@ let
               # S1 (a): the framework-mounted registration table inside an aspect: carried, never
               # entered (its closures are registrations already).
               leaf c
-            else if k == "includes" && isList c then
-              listAt (pos ++ [ k ]) c
+            else if k == "includes" then
+              includesAt (pos ++ [ k ]) c
             else if cat == "class" then
               classAt (pos ++ [ k ]) c
             else if cat == null then
@@ -371,13 +471,7 @@ let
               leaf c
           ) v;
           classKeys = filter (k: category k == "class") (attrNames v);
-          liftWalks = builtins.concatMap (
-            k:
-            let
-              l = ws.${k}.lift;
-            in
-            if l == null then [ ] else [ (closureAt l.pos (liftOf k l)) ]
-          ) classKeys;
+          liftWalks = builtins.concatMap (k: map (l: closureAt l.pos (liftOf k l)) ws.${k}.lifts) classKeys;
           base = if ws ? includes then ws.includes.value else [ ];
           extra = map (w: w.value) liftWalks;
         in
@@ -396,7 +490,12 @@ let
                     else if isList base then
                       base ++ extra
                     else
-                      throw "gen-rules: a lifted class closure lands in `includes`, which is not a list here";
+                      # a wrapped `includes` (`mkIf c [ … ]`): the lifted nodes land as their own,
+                      # unconditional definition beside it
+                      merge.mkMerge [
+                        base
+                        extra
+                      ];
                 }
             );
         };
@@ -420,5 +519,6 @@ in
     isCallable
     leaf
     combine
+    wrapperAt
     ;
 }

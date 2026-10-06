@@ -82,16 +82,18 @@ let
     p: v:
     foldl' (acc: k: { ${k} = acc; }) v (builtins.genList (i: elemAt p (length p - 1 - i)) (length p));
 
-  # Descend to an option path through plain attrsets and property wrappers, and lower there.
+  # Descend to an option path through plain attrsets and property wrappers, and lower there. A wrapper
+  # above the path is passed through as one at it is (`walk.wrapperAt`); `pre` collects its steps, so
+  # two contents of one `mkMerge` lower at two positions.
   descend =
-    path: v: f:
+    pre: path: v: f:
     if path == [ ] then
-      f v
+      f pre v
     else if isAttrs v && v ? _type then
-      W.leaf v # a wrapper above a declared path: carried; the spec's open item O-4 (prototype scope)
+      W.wrapperAt pre v (pre': v': descend pre' path v' f)
     else if isAttrs v && v ? ${head path} then
       let
-        w = descend (tail path) v.${head path} f;
+        w = descend pre (tail path) v.${head path} f;
       in
       w
       // {
@@ -227,7 +229,7 @@ let
         at: k: c:
         let
           aspectSteps = map (
-            p: cfg: descend p cfg (v: (W.walk (guardMode k)).${at.entry} (at.base ++ p) v)
+            p: cfg: descend [ ] p cfg (pre: v: (W.walk (guardMode k)).${at.entry} (at.base ++ pre ++ p) v)
           ) at.aspectPaths;
           step =
             acc: f:
@@ -242,7 +244,7 @@ let
           stepRule =
             acc: r:
             let
-              w = descend r.path acc.value (v: rulesAt (ruleMode k r.contract) r.path v);
+              w = descend [ ] r.path acc.value (pre: v: rulesAt (ruleMode k r.contract) (pre ++ r.path) v);
             in
             {
               inherit (w) value;

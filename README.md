@@ -85,6 +85,10 @@ abnormality defeats.
   The door holds neither the module arguments that closure is created under nor a table to register
   it in, so it is refused by name when the module system applies the function. A result holding no
   closure is served (`ci/tests/module-fn-shapes.nix`).
+- **It does not lift a class-key closure under an override or order wrapper** (`mkForce`, `mkBefore`,
+  …). The lift moves the definition into `includes`, so no placement keeps the rank it was written
+  with; it is refused by name. A closure under `mkIf` or `mkMerge`, at that key or at any other position
+  the lowering walks, is lowered as the same closure unwrapped (`ci/tests/wrapped.nix`).
 - **It does not lower `__functor` aspects.** That form is the framework's vocabulary. A closure that
   returns one is refused by name.
 - **It runs no head analysis.** The refusal for an over-approximated door rule (`null` binds or
