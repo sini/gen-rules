@@ -35,6 +35,31 @@ let
     in
     map (f.fire context) (s1.guardsIn f.r.config.aspects.main);
   firstLine = msg: "^" + genPrelude.escapeRegex msg;
+  # A closure's output fired at a context without `bobbin`, then applied downstream as an aspect
+  # definition (den-hoag-zm0gu).
+  s1Down =
+    out:
+    let
+      f = s1.framework { modules = [ { config.aspects.main.includes = [ out ]; } ]; };
+      o = f.fire { thimble = "x"; } (builtins.head (s1.guardsIn f.r.config.aspects.main));
+      cnf0 = {
+        entityKinds = null;
+        keySemantics.nixos.category = "class";
+        inherit (s1.w) moduleArgs;
+        aspectModules = [ (R.lambdasMount "lambdas") ];
+      };
+      schema = s1.w.aspects.mkAspectSchema cnf0;
+      p =
+        (s1.w.merge.evalModuleTree { } [
+          { options.schema = schema.schemaOption; }
+          (schema.mkAspectModule { })
+          { config.aspects.probe = o; }
+        ]).config.aspects.probe;
+    in
+    builtins.deepSeq (builtins.attrNames p) (
+      map (x: x.nixos or null) (p.includes or [ ]) ++ [ p.nixos ] ++ s1.guardsIn p
+    );
+  zmId = "{\"declared\":{\"reads\":[\"thimble\"],\"site\":\"[\\\"s1:0\\\",[\\\"aspects\\\",\\\"main\\\",\\\"includes\\\",0]]\"}}";
 in
 {
   flake.testsError = {
@@ -225,6 +250,48 @@ in
         { aspects.main = { config, ... }: { nixos = { bobbin, pkgs, ... }: { marker = "u-${bobbin}"; }; }; }
       ] { thimble = "x"; }) null;
       expectedError.msg = exactly "gen-aspects.guard: aspect `main.includes.[definition 1-entry 1]`: absent-coordinate: {\"name\":\"bobbin\"}";
+    };
+
+    # den-hoag-zm0gu: a closure in the result of a module function a closure returned.
+    test-a-closure-in-a-module-function-output-is-refused-by-name = {
+      expr = builtins.deepSeq (s1Down (
+        { thimble, ... }: { config, ... }: { nixos = { bobbin, pkgs, ... }: { }; }
+      )) null;
+      expectedError.msg = exactly "gen-rules.mkApply: guard-codomain: the closure registered under ${zmId} returned a module function whose result holds a closure at [\"nixos\"]; the door cannot register it, because it exists only under the module system's arguments. Write the closure in an attrset output, where it becomes a nested door node, or as a guard term.";
+    };
+
+    # den-hoag-zm0gu: the includes form, which gen-aspects refused with a hint naming the framework's
+    # surface the closure was already written through.
+    test-an-include-closure-in-a-module-function-output-is-refused-by-name = {
+      expr = builtins.deepSeq (s1Down (
+        { thimble, ... }: { config, ... }: { includes = [ ({ bobbin, ... }: { }) ]; }
+      )) null;
+      expectedError.msg = exactly "gen-rules.mkApply: guard-codomain: the closure registered under ${zmId} returned a module function whose result holds a closure at [\"includes\",0]; the door cannot register it, because it exists only under the module system's arguments. Write the closure in an attrset output, where it becomes a nested door node, or as a guard term.";
+    };
+
+    # den-hoag-zm0gu: the same refusal for a module function at an aspect position of an attrset output,
+    # named at the closure's own position.
+    test-a-closure-in-a-nested-module-function-output-is-refused-by-name = {
+      expr = builtins.deepSeq (s1Down (
+        { thimble, ... }:
+        {
+          includes = [ ({ config, ... }: { nixos = { bobbin, pkgs, ... }: { }; }) ];
+        }
+      )) null;
+      expectedError.msg = exactly "gen-rules.mkApply: guard-codomain: the closure registered under ${zmId} returned a module function whose result holds a closure at [\"includes\",0,\"nixos\"]; the door cannot register it, because it exists only under the module system's arguments. Write the closure in an attrset output, where it becomes a nested door node, or as a guard term.";
+    };
+
+    # den-hoag-zm0gu: a functor-form module function returned by a closure meets the attrset output's
+    # check, never a silent drop.
+    test-a-functor-module-function-output-is-refused-by-name = {
+      expr = builtins.deepSeq (s1Down (
+        { thimble, ... }:
+        {
+          __functionArgs.config = false;
+          __functor = _: { config, ... }: { nixos = { pkgs, ... }: { }; };
+        }
+      )) null;
+      expectedError.msg = exactly "gen-aspects.guard: aspect `main.includes.[definition 1-entry 1]`: guard-codomain: the closure's output holds a `__functor` record at an aspect position (design open item 9: the framework's vocabulary) at []";
     };
   };
 }

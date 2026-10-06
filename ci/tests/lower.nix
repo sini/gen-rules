@@ -189,7 +189,13 @@ in
         {
           classEmptied = (lifted.node "lifted").nixos;
           cond = form n;
-          applied = (lifted.fire ctx srcs n).nixos { pkgs = "P"; };
+          # read as the class's module system reads it, never by calling the class value
+          applied.got =
+            (w.merge.evalModuleTree { } [
+              { options.got = w.merge.mkOption { type = w.merge.types.str; }; }
+              { config._module.args.pkgs = "P"; }
+              (lifted.fire ctx srcs n).nixos
+            ]).config.got;
         };
       expected = {
         classEmptied = { };

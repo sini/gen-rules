@@ -163,7 +163,9 @@ let
         if isFunction v then
           # A module function at an aspect position is NOT entered (design Section 3 (b)): where the
           # framework mounts the table in the aspect submodule (S1 arm (a)), it is wrapped so that its
-          # result passes the same lowering when gen-merge applies it; else it is carried.
+          # result passes the same lowering when gen-merge applies it. The door's `moduleFn` checks the
+          # result instead, refusing a closure in it by name (apply.nix `mkApply`); without one it is
+          # carried.
           if isModuleFn v then
             if mode ? moduleFn then
               {
@@ -325,7 +327,9 @@ let
         };
 
       # `{ <class> = f; }`, f over coordinates C and module args M, becomes the aspect-position closure
-      # `{ C }: { <class> = <f with C applied, M kept> }` (gate v2 G3): a door node in `includes`.
+      # `{ C }: { <class>.imports = [ <f with C applied, M kept> ]; }` (gate v2 G3): a door node in
+      # `includes`. The class value is aspect content whatever formals remain, so a coordinate-only f
+      # (M empty, not a module function of `cnf.moduleArgs` [gate v1 Q7]) lifts as any other does.
       liftOf =
         k: l:
         let
@@ -334,10 +338,12 @@ let
         {
           __functionArgs = genAttrs l.coords (_: false);
           __functor = _: ctx: {
-            ${k} = {
-              __functionArgs = margs;
-              __functor = _: m: l.fn (m // genAttrs l.coords (n: ctx.${n}));
-            };
+            ${k}.imports = [
+              {
+                __functionArgs = margs;
+                __functor = _: m: l.fn (m // genAttrs l.coords (n: ctx.${n}));
+              }
+            ];
           };
         };
 

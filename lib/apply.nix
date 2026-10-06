@@ -103,10 +103,12 @@ let
           ok { };
 
       # The guard codomain: aspect content (an attrset, or a module function of `cnf.moduleArgs`),
-      # lowered with the same walk, every closure at an aspect position a nested door node.
+      # lowered with the same walk, every closure at an aspect position a nested door node. A module
+      # function, the whole output or nested, passes through `mode.moduleFn`: its result is checked
+      # when the module system applies it, and a closure in it is refused by name.
       lowerGuard =
         mode: v:
-        if isAttrs v && !(v ? __functor) then
+        if (isAttrs v && !(v ? __functor)) || (W.isCallable v && aspects.mkIsModuleFn cnf v) then
           let
             w = (W.walk mode).aspectAt [ ] v;
           in
@@ -117,8 +119,6 @@ let
             }
           else
             ok w
-        else if W.isCallable v && aspects.mkIsModuleFn cnf v then
-          ok (W.leaf v)
         else
           refuse "guard-codomain" {
             position = [ ];
@@ -212,6 +212,41 @@ let
           mode = {
             inherit cnf declared;
             strict = true;
+            # A module function in the output is applied by the module system, under arguments the door
+            # never holds, so a closure its result writes can be neither registered nor scoped: the
+            # result passes the output's own check when applied, and a closure in it is refused by name.
+            # The envelope is the loader's (defunctionalize.nix `moduleFn`), under its precondition.
+            moduleFn =
+              pos: f:
+              { config, ... }:
+              {
+                imports = [
+                  {
+                    __functionArgs = builtins.functionArgs f;
+                    # lazy and positional, as the loader's refusals are: a closure throws only when
+                    # the merge forces its position, so the check adds no strictness (Section 3 (b))
+                    __functor =
+                      _: args:
+                      (
+                        (W.walk (
+                          mode
+                          // {
+                            strict = false;
+                            where = "gen-rules.mkApply: the closure registered under ${shortId rootId} returned a module function whose result";
+                            idOf =
+                              p: _:
+                              throw "gen-rules.mkApply: guard-codomain: the closure registered under ${shortId rootId} returned a module function whose result holds a closure at ${builtins.toJSON p}; the door cannot register it, because it exists only under the module system's arguments. Write the closure in an attrset output, where it becomes a nested door node, or as a guard term.";
+                            node =
+                              _: r: _:
+                              r;
+                          }
+                        )).aspectAt
+                          pos
+                          (f args)
+                      ).value;
+                  }
+                ];
+              };
             idOf =
               pos: q:
               (T.refId {

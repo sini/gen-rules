@@ -8,9 +8,8 @@
 #
 #   s1a  a closure at `includes` inside the module function: served, as its control is.
 #   s1c  a closure over a coordinate at a CLASS KEY inside the module function: lifted with its `has`
-#        guard, the same condition as its control. Fired with a module-argument formal, it delivers.
-#        (A coordinate-only class closure's FIRING is refused by the lift, den-hoag-d13lv, at its
-#        control too; these cells read only its condition.)
+#        guard, the same condition as its control. Fired with a module-argument formal, it delivers;
+#        a coordinate-only one fires too (`module-fn-shapes.nix`, den-hoag-d13lv).
 #   s1e  the same with a body reading the coordinate: at a context without it, the door node does not
 #        fire under a declared set and the door refuses by name under the open world; never gen-merge.
 #
@@ -75,7 +74,7 @@ in
 
     test-s1c-class-key-closure-inside-a-module-function-keeps-its-guard = {
       expr = {
-        # coordinate-only: the condition only (its firing is den-hoag-d13lv's, at the control too)
+        # coordinate-only: the condition (its firing is read in module-fn-shapes.nix)
         condition =
           (run { modules = [ { aspects.main = { config, ... }: { nixos = { bobbin, ... }: { }; }; } ]; })
           .conditions;
