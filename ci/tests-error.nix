@@ -105,6 +105,26 @@ in
       expectedError.msg = firstLine "gen-aspects: aspect `main.sub`: a priority (`mkOverride`, `mkForce`, `mkDefault`) over a value holding an `includes` list or a module function, in a plain definition beside a guard.";
     };
 
+    # den-hoag-15wnx n4f: `main.sub = mkIf false { … }` beside a closure leaves `sub` with no definition.
+    # The fired carrier keeps the key and refuses it by name where it is read, with the message its T4
+    # twin (a plain sibling, no carrier) gives. RED (gen-merge's nested discharge reverted): `S` served.
+    test-n4f-a-false-conditional-at-a-nested-key-is-refused-where-read = {
+      expr =
+        let
+          f = s1.framework {
+            modules = [
+              g5X
+              {
+                key = "plain-z";
+                config.aspects.main.sub = genMerge.mkIf false { description = "S"; };
+              }
+            ];
+          };
+        in
+        builtins.deepSeq (f.fire s1.ctx f.r.config.aspects.main).sub null;
+      expectedError.msg = exactly "gen-merge: option `main.sub' has no definitions after priority resolution";
+    };
+
     test-a-function-at-a-class-key-over-an-undeclared-coordinate-is-refused-by-name = {
       expr = builtins.deepSeq (node [
         { fw.aspects.bad.nixos = { undeclaredCoord, ... }: { }; }

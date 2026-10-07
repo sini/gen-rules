@@ -570,6 +570,78 @@ in
       };
     };
 
+    # den-hoag-15wnx: a property over raw content at a nested key of a plain definition is discharged
+    # by the carrier's content law, beside the fired record's own nested content, as T4 discharges it.
+    # n4f (`mkIf false`, nothing beside it) is ci/tests-error.nix; n4m is K1's `mkMerge` arm.
+    # n10f: `mkIf false` beside the fired `sub` drops `S` (RED: `S` served)
+    test-n10f-a-false-conditional-beside-fired-nested-content-is-dropped = {
+      expr =
+        let
+          e = t: { sub.description = "R-${t}"; };
+          p = plain "n10f" { sub = merge.mkIf false { description = "S"; }; };
+        in
+        {
+          carrier = servedAll [
+            (xsW e)
+            p
+          ];
+          t4 = servedAll [
+            (t4W e)
+            p
+          ];
+        };
+      expected = {
+        carrier = [
+          "G-x"
+          "R-x"
+        ];
+        t4 = [
+          "P"
+          "R-x"
+        ];
+      };
+    };
+
+    # n9r: `mkForce` over raw content beats the fired `sub` (RED: both served, the override ignored)
+    test-n9r-an-override-over-raw-nested-content-beats-the-fired-content = {
+      expr =
+        let
+          e = t: { sub.description = "R-${t}"; };
+          p = plain "n9r" { sub = merge.mkForce { description = "S"; }; };
+        in
+        {
+          carrier = servedAll [
+            (xsW e)
+            p
+          ];
+          t4 = servedAll [
+            (t4W e)
+            p
+          ];
+        };
+      expected = {
+        carrier = [
+          "G-x"
+          "S"
+        ];
+        t4 = [
+          "P"
+          "S"
+        ];
+      };
+    };
+
+    # n10t: `mkIf true` as the only definition of `sub`; the fired `sub` holds the content, not the
+    # marker (RED: keys `_type`/`condition`/`content`; `render` descends into `content`, so read keys)
+    test-n10t-a-true-conditional-at-a-nested-key-is-discharged = {
+      expr =
+        builtins.attrNames
+          (firedMain (besideX {
+            sub = merge.mkIf true { description = "S"; };
+          })).sub;
+      expected = [ "description" ];
+    };
+
     # Include order: the typed positions are one fragment, placed at the first definition that is not
     # the fired record, so plain includes precede the fired record's; T4 keeps definition order.
     test-the-include-order-against-t4 = {
