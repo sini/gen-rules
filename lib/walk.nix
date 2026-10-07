@@ -56,6 +56,8 @@ let
   # design Section 3 "S"; that figure is of the corpus, not of this tree.)
   # OWNER REVIEW FLAGGED (den-hoag-t5hli): this arm depends on `builtins.toXML`, which is strange;
   # the dependency is held for owner review at delivery, and option (c) is the alternative on the table.
+  # The `closed` field below (iy9qh R2's narrowing) reads the ellipsis or varpat through `toXML` too, and
+  # option (c) does not replace it: no builtin exposes an ellipsis.
   patternOf =
     f:
     let

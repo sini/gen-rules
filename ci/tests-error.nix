@@ -372,6 +372,19 @@ in
       expectedError.msg = exactly "gen-aspects.guard: aspect `main.includes.[definition 1-entry 1]`: guard-codomain: the closure's output holds a `__functor` record at an aspect position (design open item 9: the framework's vocabulary) at []";
     };
 
+    # iy9qh R3: a top-level functor whose `__functor` yields no lambda is left unwrapped, and the module
+    # system refuses it for that attribute. The message is gen-merge's, so the cell pins the attribute it
+    # names, not its wording; `module-fn-shapes` holds the value-plane cell that it refuses catchably.
+    test-a-malformed-functor-top-level-module-is-refused-at-its-functor = {
+      expr =
+        builtins.deepSeq
+          (s1.framework {
+            modules = [ { __functor = _: 5; } ];
+          }).r.config.aspects.main.description
+          null;
+      expectedError.msg = ".*__functor.*";
+    };
+
     # den-hoag-crk5e: the lift moves a class-key closure into `includes`; an override or order property
     # would rank it there against other definitions, so it is refused by name, the wrapper's `_type` named.
   }
