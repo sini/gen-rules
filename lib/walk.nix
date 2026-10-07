@@ -184,10 +184,16 @@ let
       isNode = v: isCarrier v || (isAttrs v && !(v.__guard or false) && v ? ${t});
       nested = k: k != t && k != "includes" && aspects.keyCategory cnf k == null;
       nodeView = v: nodeViewOf (if isCarrier v then carrierAspect v else v);
-      carrierAspect = v: {
-        ${t} = { };
-        includes = concatLists (map (f: if f.coerced or false then f.body.includes else [ ]) v.fragments);
-      };
+      # The coerced fragments' position trees, united (den-hoag-3849t): an aspect with an empty table
+      # at every position, `includes` concatenated, a nested key's trees united one level down.
+      carrierAspect = v: positionsAspect (map (f: f.body) (filter (f: f.coerced or false) v.fragments));
+      positionsAspect =
+        bs:
+        builtins.zipAttrsWith (_: positionsAspect) (map (b: removeAttrs b [ "includes" ]) bs)
+        // {
+          ${t} = { };
+          includes = concatLists (map (b: b.includes or [ ]) bs);
+        };
       nodeViewOf = a: {
         own = a.${t};
         keys = mapAttrs (k: v: if nested k && isNode v then nodeView v else null) a;
@@ -203,7 +209,7 @@ let
                 mapAttrs (_: r: {
                   inherit r;
                   view = elemAt views i;
-                }) (elemAt els i).${t}
+                }) (elemAt views i).own
               ) (length els)
             );
           };

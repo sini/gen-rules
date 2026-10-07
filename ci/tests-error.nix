@@ -35,6 +35,21 @@ let
     in
     map (f.fire context) (s1.guardsIn f.r.config.aspects.main);
   firstLine = msg: "^" + genPrelude.escapeRegex msg;
+  # den-hoag-3849t: a closure `x` makes `main` a carrier; `plainThrow`'s include condition throws
+  g5X = {
+    key = "x";
+    config.aspects.main = { thimble, ... }: { description = "G-${thimble}"; };
+  };
+  g5Y = {
+    key = "y";
+    config.aspects.main = { config, ... }: { includes = [ s1.inner ]; };
+  };
+  plainThrow = {
+    key = "p";
+    config.aspects.main.includes = genMerge.mkIf (throw "plain condition forced") [
+      { description = "never"; }
+    ];
+  };
   # A closure's output fired at a context without `bobbin`, then applied downstream as an aspect
   # definition (den-hoag-zm0gu).
   s1Down =
@@ -370,6 +385,42 @@ in
         }
       )) null;
       expectedError.msg = exactly "gen-aspects.guard: aspect `main.includes.[definition 1-entry 1]`: guard-codomain: the closure's output holds a `__functor` record at an aspect position (design open item 9: the framework's vocabulary) at []";
+    };
+
+    # den-hoag-3849t (G5, re-seeded to T4's value): a plain sibling's include is typed in the carrier's
+    # one evaluation, so firing the module function's closure forces its condition where T4 forces it.
+    # It was `T-x` while the plain definition was held raw.
+    test-g5-a-plain-sibling-include-condition-is-forced-as-t4-forces-it = {
+      expr =
+        let
+          f = s1.framework {
+            modules = [
+              g5X
+              g5Y
+              plainThrow
+            ];
+          };
+          cf = builtins.head (builtins.filter (fr: fr.coerced or false) f.r.config.aspects.main.fragments);
+        in
+        builtins.deepSeq (f.fire s1.ctx (builtins.head (builtins.filter s1.isGuard (builtins.head cf.body.includes).includes))) null;
+      expectedError.msg = exactly "plain condition forced";
+    };
+
+    # den-hoag-3849t: graph facts read a carrier's plain include as a typed list, so its throwing
+    # condition throws catchably, as T4's does. RED: the property marker read as a list aborted
+    # uncatchably (`expected a list but found a set`).
+    test-graph-facts-over-a-plain-include-condition-throws-catchably = {
+      expr = builtins.deepSeq (map (s: s.kind or "?") (
+        (genAspects.graphFacts { }
+          (s1.framework {
+            modules = [
+              g5X
+              plainThrow
+            ];
+          }).r.config.aspects
+        ).includeSitesOf.main or [ ]
+      )) null;
+      expectedError.msg = exactly "plain condition forced";
     };
 
     # den-hoag-crk5e: the lift moves a class-key closure into `includes`; an override or order property
