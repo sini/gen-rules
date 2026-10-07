@@ -198,10 +198,10 @@ let
   viewOf =
     cnf: t: c:
     let
-      # A guard carrier is a node through its coerced fragments: each holds the `includes` element its
-      # module function was applied in, the home of that function's tables (den-hoag-cgobz). Its own
-      # table is empty, since its door nodes are load-time records the root holds, and a plain
-      # fragment is a raw definition no `lambdasMount` typed, so it is never entered.
+      # A guard carrier is a node through its coerced fragment: the typed positions of its module
+      # functions and plain definitions, each `includes` element the home of its tables (den-hoag-cgobz,
+      # den-hoag-3849t). Its own table is empty, since its door nodes are load-time records the root
+      # holds, and a plain definition's raw remainder holds no typed position, so it is never entered.
       isCarrier = v: isAttrs v && (v.__guard or false) && v ? fragments;
       isNode = v: isCarrier v || (isAttrs v && !(v.__guard or false) && v ? ${t});
       nested = k: k != t && k != "includes" && aspects.keyCategory cnf k == null;
