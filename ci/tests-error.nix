@@ -332,8 +332,9 @@ in
         # is named first is the evaluator's order: its identifier (a string; Nix, Determinate) or its
         # closure (Lix)
         expectedError.msg =
-          genPrelude.escapeRegex "gen-aspects: aspect `main"
-          + "(`: orphan leaf at `main\\.lambdas\\..*\\.id` \\(a value of type string|\\.lambdas\\..*\\.fn`: a context closure reached a gen-aspects-typed position)";
+          "^"
+          + genPrelude.escapeRegex "gen-aspects: aspect `main"
+          + "(`: orphan leaf at `main\\.lambdas\\..*\\.id`|\\.lambdas\\..*\\.fn`: a context closure reached a gen-aspects-typed position)";
       };
 
     # s1e: a class closure inside a module function, reading `bobbin`, fired at a context without it
@@ -342,7 +343,9 @@ in
       expr = builtins.deepSeq (s1Fire [
         { aspects.main = { config, ... }: { nixos = { bobbin, pkgs, ... }: { marker = "u-${bobbin}"; }; }; }
       ] { thimble = "x"; }) null;
-      expectedError.msg = exactly "gen-aspects.guard: aspect `main.includes.[definition 1-entry 1]`: absent-coordinate: {\"name\":\"bobbin\"}";
+      expectedError.msg =
+        "^"
+        + genPrelude.escapeRegex "gen-aspects.guard: aspect `main.includes.[definition 1-entry 1]`: absent-coordinate: {\"name\":\"bobbin\"}";
     };
 
     # den-hoag-zm0gu: a closure in the result of a module function a closure returned.
@@ -384,7 +387,9 @@ in
           __functor = _: { config, ... }: { nixos = { pkgs, ... }: { }; };
         }
       )) null;
-      expectedError.msg = exactly "gen-aspects.guard: aspect `main.includes.[definition 1-entry 1]`: guard-codomain: the closure's output holds a `__functor` record at an aspect position (design open item 9: the framework's vocabulary) at []";
+      expectedError.msg =
+        "^"
+        + genPrelude.escapeRegex "gen-aspects.guard: aspect `main.includes.[definition 1-entry 1]`: guard-codomain: the closure's output holds a `__functor` record at an aspect position (design open item 9: the framework's vocabulary) at []";
     };
 
     # den-hoag-3849t (G5, re-seeded to T4's value): a plain sibling's include is typed in the carrier's
@@ -462,7 +467,9 @@ in
             expr = builtins.deepSeq (s1Fire [
               { aspects.main.includes = [ ({ thimble, ... }: { nixos = c.value; }) ]; }
             ] s1.ctx) null;
-            expectedError.msg = exactly "gen-aspects.guard: aspect `main.includes.[definition 1-entry 1]`: guard-codomain: the closure's output holds a function at a class key that is neither a module function of `cnf.moduleArgs` nor a closure over declared coordinates at [\"nixos\"]";
+            expectedError.msg =
+              "^"
+              + genPrelude.escapeRegex "gen-aspects.guard: aspect `main.includes.[definition 1-entry 1]`: guard-codomain: the closure's output holds a function at a class key that is neither a module function of `cnf.moduleArgs` nor a closure over declared coordinates at [\"nixos\"]";
           };
         }
       ])
@@ -541,7 +548,9 @@ in
               };
             in
             builtins.deepSeq (f.fire s1.ctx (builtins.head (s1.guardsIn f.r.config.aspects.main))) null;
-          expectedError.msg = exactly "gen-aspects.guard: aspect `main.includes.[definition 1-entry 1]`: guard-codomain: the closure's output holds a closure over coordinates at a class key under a property wrapper of `_type = \"${c.type}\"` (`mkOverride`/`mkForce`/`mkDefault`, or `mkOrder`/`mkBefore`/`mkAfter`): the lift moves the definition into `includes`, where that property would rank it against other definitions than the ones it was written beside at [\"nixos\"]";
+          expectedError.msg =
+            "^"
+            + genPrelude.escapeRegex "gen-aspects.guard: aspect `main.includes.[definition 1-entry 1]`: guard-codomain: the closure's output holds a closure over coordinates at a class key under a property wrapper of `_type = \"${c.type}\"` (`mkOverride`/`mkForce`/`mkDefault`, or `mkOrder`/`mkBefore`/`mkAfter`): the lift moves the definition into `includes`, where that property would rank it against other definitions than the ones it was written beside at [\"nixos\"]";
         };
       })
       [
