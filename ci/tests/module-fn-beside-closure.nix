@@ -530,11 +530,9 @@ in
       expected = false;
     };
 
-    # K1: a nested value under a property (`mkIf`, `mkMerge`, `mkOrder`) is projected through, its
-    # wrapper kept, so the typed child discharges it as T4 would. RED: registrations 1, raw function.
-    # An override (`mkForce`) over a typed position at a nested key is refused by name instead
-    # (den-hoag-15wnx, gen-aspects' stated shortfall): its message is ci/tests-error.nix
-    # `test-k1-an-override-over-a-nested-typed-position-is-refused-by-name`.
+    # K1: a nested value under a property (`mkIf`, `mkMerge`, `mkForce`, `mkOrder`) is projected through,
+    # its wrapper kept, so the typed child discharges it as T4 would; an override keeps its priority to the
+    # carrier's discharge (den-hoag-fjdnf). RED: registrations 1, raw function.
     test-k1-a-module-function-under-a-property-at-a-nested-key-is-applied = {
       expr = {
         mkIf = regsServed (besideX {
@@ -548,6 +546,9 @@ in
             { includes = [ fn ]; }
             { description = "S"; }
           ];
+        });
+        mkForce = regsServed (besideX {
+          sub = merge.mkForce { includes = [ fn ]; };
         });
         mkOrder = regsServed (besideX {
           sub = merge.mkOrder 500 { includes = [ fn ]; };
@@ -566,6 +567,8 @@ in
             "T-x"
           ];
         };
+        # the override keeps its priority to the discharge (den-hoag-fjdnf), so its typed element is served
+        mkForce = appliedRow;
         mkOrder = appliedRow;
       };
     };

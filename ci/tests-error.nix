@@ -78,33 +78,6 @@ let
 in
 {
   flake.testsError = {
-    # den-hoag-15wnx (K1's `mkForce` arm): a priority over a value holding a typed position, at a nested
-    # key of a plain definition beside a closure, is refused by name: the typed half is merged at load and
-    # the guards are discharged later, so the priority cannot range over the fired content. Served, the
-    # element was lost. A STATED SHORTFALL in gen-aspects; the other K1 wrappers are `./tests`
-    # `module-fn-beside-closure`. RED (the refusal removed): both registrations, `includes` served.
-    test-k1-an-override-over-a-nested-typed-position-is-refused-by-name = {
-      expr =
-        let
-          f = s1.framework {
-            modules = [
-              g5X
-              {
-                key = "plain-z";
-                config.aspects.main.sub = genMerge.mkForce {
-                  includes = [ ({ config, ... }: { includes = [ s1.inner ]; }) ];
-                };
-              }
-            ];
-          };
-        in
-        builtins.deepSeq {
-          registrations = s1.registered f.r.config.lambdas;
-          fired = f.fire s1.ctx f.r.config.aspects.main;
-        } null;
-      expectedError.msg = firstLine "gen-aspects: aspect `main.sub`: a priority (`mkOverride`, `mkForce`, `mkDefault`) over a value holding an `includes` list or a module function, in a plain definition beside a guard.";
-    };
-
     # den-hoag-15wnx n4f: `main.sub = mkIf false { … }` beside a closure leaves `sub` with no definition.
     # The fired carrier keeps the key and refuses it by name where it is read, with the message its T4
     # twin (a plain sibling, no carrier) gives. RED (gen-merge's nested discharge reverted): `S` served.

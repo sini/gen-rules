@@ -208,9 +208,20 @@ let
       nodeView = v: nodeViewOf (if isCarrier v then carrierAspect v else v);
       # The coerced fragments' position trees, united (den-hoag-3849t): an aspect with an empty table
       # at every position, `includes` concatenated, a nested key's trees united one level down.
+      # A nested position is a definition when its priority is not the default, `{ _type = "override"; content; }`,
+      # or when none of its definitions survives discharge, the identity `mkIf false { }` (gen-merge
+      # `partialAttrsOf`, den-hoag-fjdnf); its positions are its content's. The view is a load-time one and
+      # over-approximates: a typed element whose priority loses to the fired content is still registered,
+      # while the served value is T4's. Whether a fired content beats a priority is a fire-time fact. For a
+      # closure guard that is the merge-marker spec's F4(b), "Accepted WITH the ruling: the declared
+      # opaque-pre-discharge limit"; for a record guard, 3849t v2 [gate v1 P2], "A load-time choice must hold
+      # for every fired content".
       carrierAspect = v: positionsAspect (map (f: f.body) (filter (f: f.coerced or false) v.fragments));
       positionsAspect =
-        bs:
+        bs0:
+        let
+          bs = map (b: if b ? _type then b.content else b) bs0;
+        in
         builtins.zipAttrsWith (_: positionsAspect) (map (b: removeAttrs b [ "includes" ]) bs)
         // {
           ${t} = { };
