@@ -634,6 +634,37 @@ in
       };
     };
 
+    # n9: `mkForce` over a plain definition's typed top `includes` beats the fired record's `includes`
+    # (den-hoag-5ov3p): the carrier's typed child is a `partialSubmodule`, so its declared `includes` keeps
+    # the priority that selected it to the content law (RED: `X-x` served beside `Q`, the override ignored)
+    test-n9-an-override-over-a-typed-includes-beats-the-fired-includes = {
+      expr =
+        let
+          e = t: { includes = [ (q "X-${t}") ]; };
+          p = plain "n9" { includes = merge.mkForce [ (q "Q") ]; };
+        in
+        {
+          carrier = servedAll [
+            (xsW e)
+            p
+          ];
+          t4 = servedAll [
+            (t4W e)
+            p
+          ];
+        };
+      expected = {
+        carrier = [
+          "G-x"
+          "Q"
+        ];
+        t4 = [
+          "P"
+          "Q"
+        ];
+      };
+    };
+
     # n10t: `mkIf true` as the only definition of `sub`; the fired `sub` holds the content, not the
     # marker (RED: keys `_type`/`condition`/`content`; `render` descends into `content`, so read keys)
     test-n10t-a-true-conditional-at-a-nested-key-is-discharged = {

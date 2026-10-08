@@ -210,7 +210,11 @@ let
       # at every position, `includes` concatenated, a nested key's trees united one level down.
       # A nested position is a definition when its priority is not the default, `{ _type = "override"; content; }`,
       # or when none of its definitions survives discharge, the identity `mkIf false { }` (gen-merge
-      # `partialAttrsOf`, den-hoag-fjdnf); its positions are its content's. The view is a load-time one and
+      # `partialAttrsOf`, den-hoag-fjdnf); its positions are its content's. A position's declared `includes` is
+      # likewise a definition under its priority, or its declared default at `mkOptionDefault` (gen-merge
+      # `partialSubmodule`, den-hoag-5ov3p), read through to its elements; the `mkIf false` identity reads as
+      # none. Read bare, the abort is uncatchable (`expected a list but found a set`):
+      # ci/tests/module-fn-beside-closure.nix's h1, h3, h5 and k1 cells. The view is a load-time one and
       # over-approximates: a typed element whose priority loses to the fired content is still registered,
       # while the served value is T4's. Whether a fired content beats a priority is a fire-time fact. For a
       # closure guard that is the merge-marker spec's F4(b), "Accepted WITH the ruling: the declared
@@ -225,7 +229,20 @@ let
         builtins.zipAttrsWith (_: positionsAspect) (map (b: removeAttrs b [ "includes" ]) bs)
         // {
           ${t} = { };
-          includes = concatLists (map (b: b.includes or [ ]) bs);
+          includes = concatLists (
+            map (
+              b:
+              let
+                i = b.includes or [ ];
+              in
+              if isList i then
+                i
+              else if (i._type or null) == "override" then
+                i.content
+              else
+                [ ]
+            ) bs
+          );
         };
       nodeViewOf = a: {
         own = a.${t};
