@@ -114,6 +114,7 @@ let
       aspects
       program
       merge
+      prelude
       ;
   };
   forced = builtins.deepSeq (builtins.mapAttrs (_: builtins.typeOf) all) null;

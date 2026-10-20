@@ -49,6 +49,9 @@ let
     )
   ) sources;
 
+  libSources = builtins.filter (s: lib.hasPrefix "lib/" s.name) sources;
+  xmlCalls = srcs: lib.foldl' (n: s: n + lib.length (lib.splitString "toXML" s.text) - 1) 0 srcs;
+
   forbidden = [
     "nixpkgs"
     "lib."
@@ -80,6 +83,19 @@ in
     # A scan reading 0 on both would be a broken predicate rather than a pure library.
     test-positive-control-the-unstripped-source-carries-the-tokens = {
       expr = builtins.length (scan sources) > 0;
+      expected = true;
+    };
+
+    # gen's one `builtins.toXML` reading is gen-prelude's `patternOf` (den-hoag-a48xt arm (a)); this
+    # library reads the pattern through it and calls `toXML` nowhere (den-hoag-gtwxg gate C4).
+    test-the-library-calls-no-toxml = {
+      expr = xmlCalls (map (s: s // { text = stripComments s.text; }) libSources);
+      expected = 0;
+    };
+
+    # ★ THE CONTROL: the unstripped library names `toXML` in the comment that points at the reader.
+    test-positive-control-the-unstripped-library-names-toxml = {
+      expr = xmlCalls libSources > 0;
       expected = true;
     };
 

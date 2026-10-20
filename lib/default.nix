@@ -18,10 +18,18 @@
   aspects,
   program,
   merge,
+  prelude,
 }:
 let
   T = algebra.term identity.hashIdentity;
-  walk = import ./walk.nix { inherit T aspects merge; };
+  walk = import ./walk.nix {
+    inherit
+      T
+      aspects
+      merge
+      prelude
+      ;
+  };
   door = import ./apply.nix {
     inherit
       T

@@ -22,12 +22,11 @@ is applied once, at the door, against exactly what its pattern reads:
 - an open pattern receives the context restricted to the framework's declared coordinates;
 - `{ }:` receives `{ }`.
 
-Telling `{ }:` from `{ ... }:` and `x:` is the one place the library reads `builtins.toXML`, because
-`functionArgs` is `{ }` for all three (`patternOf` in `lib/walk.nix`). **Option (c), not taken:** hand
-every `functionArgs = { }` shape `{ }`. It is uniform and needs no `toXML`, but a `{ ... }:` closure is
-then handed nothing it can read, and a bare positional `ctx:` aspect receives `{ }` too. At
-`d933ba8`, 3 fixtures (`ci/tests/door.nix`, `ci/tests/lower.nix`) declare an open-pattern closure and
-would change. **Flagged for owner review:** the `toXML` dependency.
+Telling `{ }:` from `{ ... }:` and `x:` is gen-prelude's `patternOf` (read in `lib/walk.nix`
+`patternOf`), because `functionArgs` is `{ }` for all three. That reader holds gen's one
+`builtins.toXML` call, ruled by the owner in den-hoag-a48xt arm (a), and gen-prelude's README
+documents the alternative, option (c), beside it (den-hoag-t5hli). This library calls `toXML`
+nowhere (`ci/tests/purity.nix`).
 
 ## What it does
 

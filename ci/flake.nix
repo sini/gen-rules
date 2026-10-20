@@ -63,6 +63,7 @@
           aspects
           program
           merge
+          prelude
           ;
       };
     in

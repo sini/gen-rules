@@ -23,7 +23,7 @@ from another repository.
 
 ## The published surface
 
-`import ./lib { algebra; identity; aspects; program; merge; }`, each APPLIED (`program` is gen-program
+`import ./lib { algebra; identity; aspects; program; merge; prelude; }`, each APPLIED (`program` is gen-program
 applied to its substrate). The root is published **UNAPPLIED** (`flake.nix`: `lib = import ./.;`); the
 hub applies it through `gen/lib/hubSubstrate.nix`.
 
@@ -46,7 +46,8 @@ hub applies it through `gen/lib/hubSubstrate.nix`.
 
 Internal: `lib/walk.nix`, the one traversal shared by the loader and the door. It returns
 `{ value; found; bad; }`, three lazy fields over one child walk. It also holds the R4/R8 pattern
-reader, `patternOf`.
+reader, `patternOf`, walk's four-kind policy over `prelude.patternOf`; the library calls `builtins.toXML`
+nowhere (`ci/tests/purity.nix`).
 
 ## Entry points by task
 

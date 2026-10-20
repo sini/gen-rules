@@ -9,6 +9,7 @@
   T,
   aspects,
   merge,
+  prelude,
 }:
 let
   tm = T.term;
@@ -28,9 +29,7 @@ let
     length
     listToAttrs
     mapAttrs
-    match
     removeAttrs
-    toXML
     ;
   genAttrs =
     ns: f:
@@ -43,21 +42,10 @@ let
 
   # The closure's pattern under 0cmbt R4/R8, read exactly as gen-aspects' context door reads it today
   # (`require-wrapped-closure.nix` `requireContextOf`, which retires to here: design Section 3, rework
-  # note). `functionArgs` is `{ }` for `x:`, `{ ... }:` and `{ }:` alike, so the pattern is read from
-  # the closure's XML.
-  #
-  # OPTION (c), documented beside (a) and NOT taken (den-hoag-t5hli R8's added requirement): hand every
-  # `functionArgs = { }` shape `{ }`. It is uniform and needs no `toXML`, but a `{ ... }:` is then
-  # handed nothing it can read, and a bare positional `ctx:` aspect receives `{ }` as well. Price,
-  # measured at gen-rules d933ba8: 3 fixtures declare an open-pattern closure (`ci/tests/door.nix`
-  # aspect `open` and rule `open`, `ci/tests/lower.nix` `open`), all `{ ... }@a:`, and each would read
-  # `{ }` where it now reads the context restricted to the declared coordinates; 0 are bare
-  # positional. (The old home, gen-aspects a8708d1, counted 3 CI fixtures in the measured v1 corpus,
-  # design Section 3 "S"; that figure is of the corpus, not of this tree.)
-  # OWNER REVIEW FLAGGED (den-hoag-t5hli): this arm depends on `builtins.toXML`, which is strange;
-  # the dependency is held for owner review at delivery, and option (c) is the alternative on the table.
-  # The `closed` field below (iy9qh R2's narrowing) reads the ellipsis or varpat through `toXML` too, and
-  # option (c) does not replace it: no builtin exposes an ellipsis.
+  # note). `functionArgs` is `{ }` for `x:`, `{ ... }:` and `{ }:` alike, so the shape is read by
+  # gen-prelude's `patternOf`, which holds gen's one `builtins.toXML` reading (den-hoag-a48xt arm (a),
+  # owner-ruled; option (c), not taken, is documented beside it in gen-prelude, den-hoag-t5hli). This
+  # record is walk's own policy over that reading: four kinds, `unreadable` for what no rule admits.
   patternOf =
     f:
     let
@@ -73,8 +61,9 @@ let
       formals = if isAttrs f then f.__functionArgs or (functionArgs raw) else functionArgs f;
       readable =
         isFunction raw && isAttrs formals && all (b: b == true || b == false) (builtins.attrValues formals);
-      xml = toXML raw;
-      hasRe = re: match re xml != null;
+      # reached only when `readable`, so prelude's domain refusals never fire here
+      shape = prelude.patternOf f;
+      open = shape.kind == "named" || shape.ellipsis;
     in
     if !readable then
       {
@@ -88,19 +77,19 @@ let
         kind = "formals";
         inherit formals;
         # a closed pattern accepts exactly its formals; an open one (ellipsis, or a functor over a bare
-        # name) accepts any wider set
-        closed = !(hasRe ".*<varpat .*" || hasRe ".*<attrspat[^>]*ellipsis=\"1\".*");
+        # name) accepts any wider set. A primop under published formals is closed.
+        closed = !open;
         required = filter (n: !formals.${n}) (attrNames formals);
         reads = attrNames formals;
       }
-    else if hasRe ".*<varpat .*" || hasRe ".*<attrspat[^>]*ellipsis=\"1\".*" then
+    else if open then
       {
         kind = "open";
         formals = { };
         required = [ ];
         reads = null;
       }
-    else if hasRe ".*<attrspat[^>]*>[[:space:]]*</attrspat>.*" then
+    else if shape.kind == "set" then
       {
         kind = "empty";
         formals = { };
