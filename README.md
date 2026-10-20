@@ -24,8 +24,8 @@ is applied once, at the door, against exactly what its pattern reads:
 
 Telling `{ }:` from `{ ... }:` and `x:` is gen-prelude's `patternOf` (read in `lib/walk.nix`
 `patternOf`), because `functionArgs` is `{ }` for all three. That reader holds gen's one
-`builtins.toXML` call, ruled by the owner in den-hoag-a48xt arm (a), and gen-prelude's README
-documents the alternative, option (c), beside it (den-hoag-t5hli). This library calls `toXML`
+`builtins.toXML` call, and gen-prelude's README documents the alternative, option (c), beside it.
+This library calls `toXML`
 nowhere (`ci/tests/purity.nix`).
 
 ## What it does
