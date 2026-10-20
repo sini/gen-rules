@@ -61,7 +61,8 @@ let
       formals = if isAttrs f then f.__functionArgs or (functionArgs raw) else functionArgs f;
       readable =
         isFunction raw && isAttrs formals && all (b: b == true || b == false) (builtins.attrValues formals);
-      # reached only when `readable`, so prelude's domain refusals never fire here
+      # reached only when `readable`, and walk reads only its `kind` and `ellipsis`, so prelude's one
+      # refusal left here is a rendering its parse does not read, which propagates by prelude's name
       shape = prelude.patternOf f;
       open = shape.kind == "named" || shape.ellipsis;
     in

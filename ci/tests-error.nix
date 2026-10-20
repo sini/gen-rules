@@ -85,19 +85,6 @@ let
 in
 {
   flake.testsError = {
-    # den-hoag-gtwxg U2b: a set pattern whose `@`-name is too long for gen-prelude's bounded parse
-    # passes walk's guard and is refused by gen-prelude's own name. Walk's private regexes, which
-    # read the whole rendering, read it `empty`: the one reading the migration changes.
-    test-a-head-outside-the-prelude-prefix-is-refused-by-prelude = {
-      expr = walk.patternOf (
-        import (
-          builtins.toFile "long-name.nix" "${
-            builtins.concatStringsSep "" (builtins.genList (_: "x") 1100)
-          }@{ }: 1"
-        )
-      );
-      expectedError.msg = exactly "gen-prelude.patternOf: the head of the function's XML rendering is not inside its first 1024 characters";
-    };
     # den-hoag-15wnx n4f: `main.sub = mkIf false { … }` beside a closure leaves `sub` with no definition.
     # The fired carrier keeps the key and refuses it by name where it is read, with the message its T4
     # twin (a plain sibling, no carrier) gives. RED (gen-merge's nested discharge reverted): `S` served.

@@ -38,6 +38,24 @@ in
         reads = [ "a" ];
       };
     };
+    # gen-prelude reads a pattern past any length of `@`-name (den-hoag-590wt), so an empty set
+    # pattern whose 1100-character name pushes its head past prelude's prefix is read `empty`, as
+    # walk's private regexes read it before the migration (den-hoag-gtwxg U2b).
+    test-a-long-at-name-over-an-empty-set-is-empty = {
+      expr = walk.patternOf (
+        import (
+          builtins.toFile "long-name.nix" "${
+            builtins.concatStringsSep "" (builtins.genList (_: "x") 1100)
+          }@{ }: 1"
+        )
+      );
+      expected = {
+        kind = "empty";
+        formals = { };
+        required = [ ];
+        reads = [ ];
+      };
+    };
     # The control: the bare primop has no formals and neither pattern form.
     test-a-bare-primop-is-unreadable = {
       expr = walk.patternOf builtins.map;
