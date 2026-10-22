@@ -104,7 +104,9 @@ let
     };
     functorBare.__functor = _: { bobbin, ... }: { marker = "fb-${bobbin}"; };
     functorClosed.__functor = _: { bobbin }: { marker = "fc-${bobbin}"; };
-    # an open functor over a positional lambda is handed every module argument (4 names)
+    # an open functor over a positional lambda is handed every module argument (6 names: gen-merge's
+    # base set `config`, `options`, `prefix`, `_class` and `_prefix`, as nixpkgs' doCollect injects
+    # them (den-hoag-61r97), plus the coordinate)
     functorVar = {
       __functionArgs.bobbin = false;
       __functor = _: args: {
@@ -126,8 +128,10 @@ let
     functor = "fn-b-P";
     functorBare = "fb-b";
     functorClosed = "fc-b";
-    functorVar = "fv-b-4";
-    at = "bobbin,config,options,prefix";
+    # den-hoag-61r97: gen-merge injects `_class` and `_prefix` into every module's argument set, as
+    # nixpkgs does, so an open pattern sees them; this engine is built with no `lib`, so none appears.
+    functorVar = "fv-b-6";
+    at = "_class,_prefix,bobbin,config,options,prefix";
   };
   # a top-level module in functor form, which the loader wraps by its functor-aware formals
   body = { config, ... }: { config.aspects.main.description = "fm"; };
