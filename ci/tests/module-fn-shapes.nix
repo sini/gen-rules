@@ -104,9 +104,9 @@ let
     };
     functorBare.__functor = _: { bobbin, ... }: { marker = "fb-${bobbin}"; };
     functorClosed.__functor = _: { bobbin }: { marker = "fc-${bobbin}"; };
-    # an open functor over a positional lambda is handed every module argument (6 names: gen-merge's
-    # base set `config`, `options`, `prefix`, `_class` and `_prefix`, as nixpkgs' doCollect injects
-    # them (den-hoag-61r97), plus the coordinate)
+    # an open functor over a positional lambda is handed every module argument (7 names: gen-merge's
+    # base set `config`, `options`, `prefix`, `specialArgs`, `_class` and `_prefix`, as nixpkgs'
+    # doCollect injects them (den-hoag-61r97, den-hoag-specialargs-module-arg-b01wy), plus the coordinate)
     functorVar = {
       __functionArgs.bobbin = false;
       __functor = _: args: {
@@ -130,8 +130,9 @@ let
     functorClosed = "fc-b";
     # den-hoag-61r97: gen-merge injects `_class` and `_prefix` into every module's argument set, as
     # nixpkgs does, so an open pattern sees them; this engine is built with no `lib`, so none appears.
-    functorVar = "fv-b-6";
-    at = "_class,_prefix,bobbin,config,options,prefix";
+    # den-hoag-specialargs-module-arg-b01wy: and `specialArgs`, the set the evaluation was called with.
+    functorVar = "fv-b-7";
+    at = "_class,_prefix,bobbin,config,options,prefix,specialArgs";
   };
   # a top-level module in functor form, which the loader wraps by its functor-aware formals
   body = { config, ... }: { config.aspects.main.description = "fm"; };
