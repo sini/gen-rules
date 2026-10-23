@@ -120,9 +120,21 @@ let
       sources = m.srcs;
       scope = { };
     } g != null;
-  t4 = [
+  # An unnamed include element's default description is `Aspect <its declaration address>`: the
+  # declaring module's anchor (`k<key>`) and the path its definition took to the element, which no
+  # module order moves.
+  declared = addr: "Aspect ${builtins.toJSON addr}";
+  atZ =
+    rest:
+    [
+      "kplain-z"
+      "aspects"
+      "main"
+    ]
+    ++ rest;
+  t4 = addr: [
     "G-x"
-    "Aspect [definition 1-entry 1]"
+    (declared addr)
     "T-x"
   ];
   # den-hoag-3849t: every description reached from `main`, firing each door node met at an aspect
@@ -199,9 +211,9 @@ let
     registrations = regs mods;
     served = servedAll mods;
   };
-  appliedRow = {
+  appliedRow = addr: {
     registrations = 2;
-    served = t4;
+    served = t4 addr;
   };
   # den-hoag-dmdou: `other` is a carrier (`x` and a module function), and `main` carries it by value
   yAt = at: {
@@ -269,7 +281,13 @@ in
         ];
       };
       expected = {
-        carrier = t4;
+        carrier = t4 [
+          "ky"
+          "aspects"
+          "main"
+          "includes"
+          0
+        ];
         control = [
           "G-x"
           "T-x"
@@ -293,10 +311,24 @@ in
       };
       expected = {
         registrations = 3;
-        served = t4 ++ [
-          "Aspect [definition 2-entry 1]"
-          "B-b"
-        ];
+        served =
+          t4 [
+            "ky"
+            "aspects"
+            "main"
+            "includes"
+            0
+          ]
+          ++ [
+            (declared [
+              "ky2"
+              "aspects"
+              "main"
+              "includes"
+              0
+            ])
+            "B-b"
+          ];
       };
     };
 
@@ -371,8 +403,24 @@ in
         ];
       };
       expected = {
-        fires = t4;
-        control = t4;
+        fires = t4 [
+          "ky"
+          "imports"
+          0
+          "aspects"
+          "main"
+          "includes"
+          0
+        ];
+        control = t4 [
+          "ky"
+          "imports"
+          0
+          "aspects"
+          "main"
+          "includes"
+          0
+        ];
       };
     };
 
@@ -385,7 +433,11 @@ in
       expr = regsServed (besideX {
         sub = fn;
       });
-      expected = appliedRow;
+      expected = appliedRow (atZ [
+        "sub"
+        "includes"
+        0
+      ]);
     };
 
     # H2: `main.includes = [ fn ]`
@@ -393,7 +445,10 @@ in
       expr = regsServed (besideX {
         includes = [ fn ];
       });
-      expected = appliedRow;
+      expected = appliedRow (atZ [
+        "includes"
+        0
+      ]);
     };
 
     # H3: below an include element, below a nested key's `includes`, and two keys down
@@ -414,13 +469,32 @@ in
           registrations = 2;
           served = [
             "G-x"
-            "Aspect [definition 1-entry 1]"
-            "Aspect [definition 1-entry 1]"
+            (declared (atZ [
+              "includes"
+              0
+            ]))
+            (declared (atZ [
+              "includes"
+              0
+              "imports"
+              0
+              "includes"
+              0
+            ]))
             "T-x"
           ];
         };
-        nestedIncludes = appliedRow;
-        deepNested = appliedRow;
+        nestedIncludes = appliedRow (atZ [
+          "sub"
+          "includes"
+          0
+        ]);
+        deepNested = appliedRow (atZ [
+          "sub"
+          "sub2"
+          "includes"
+          0
+        ]);
       };
     };
 
@@ -454,7 +528,14 @@ in
         served = [
           "G-x"
           "R-x"
-          "Aspect [definition 1-entry 1]"
+          (declared [
+            "kplain-sf"
+            "aspects"
+            "main"
+            "sub"
+            "includes"
+            0
+          ])
           "T-x"
         ];
       };
@@ -555,21 +636,54 @@ in
         });
       };
       expected = {
-        mkIf = appliedRow;
-        mkIfFn = appliedRow;
+        mkIf = appliedRow (atZ [
+          "sub"
+          "content"
+          "includes"
+          0
+        ]);
+        mkIfFn = appliedRow (atZ [
+          "sub"
+          "content"
+          "includes"
+          0
+        ]);
         # the `mkMerge`'s raw member (`description = "S"`) is discharged and served at `sub`, as the module
         # system serves it (den-hoag-15wnx); before, the marker was carried as data and `S` was not reached
-        mkMerge = appliedRow // {
-          served = [
-            "G-x"
-            "S"
-            "Aspect [definition 1-entry 1]"
-            "T-x"
-          ];
-        };
+        mkMerge =
+          appliedRow (atZ [
+            "sub"
+            "content"
+            "includes"
+            0
+          ])
+          // {
+            served = [
+              "G-x"
+              "S"
+              (declared (atZ [
+                "sub"
+                "contents"
+                0
+                "includes"
+                0
+              ]))
+              "T-x"
+            ];
+          };
         # the override keeps its priority to the discharge (den-hoag-fjdnf), so its typed element is served
-        mkForce = appliedRow;
-        mkOrder = appliedRow;
+        mkForce = appliedRow (atZ [
+          "sub"
+          "content"
+          "includes"
+          0
+        ]);
+        mkOrder = appliedRow (atZ [
+          "sub"
+          "content"
+          "includes"
+          0
+        ]);
       };
     };
 
@@ -745,7 +859,13 @@ in
       );
       expected = [
         "Aspect main"
-        "Aspect [definition 1-entry 1]"
+        (declared [
+          "kmainFn"
+          "aspects"
+          "main"
+          "includes"
+          0
+        ])
         "M-b"
         "G-x"
         "Y"
