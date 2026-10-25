@@ -30,11 +30,39 @@ let
         if builtins.isString v then v else builtins.foldl' following lock.root v;
     in
     segs: builtins.foldl' following lock.root segs;
-  fetch = resolve lock;
+  # `fetch` IS THE SHIM'S WHOLE PATH-TO-STORE-PATH CONCERN, AND IT LEAVES THROUGH `wire`'s RECORD:
+  # the resolver above, `node` (that resolver on this lock) and `locked` (a node's store path), so the
+  # entry cells drive these exact bindings rather than a transcription of them.
+  fetch = {
+    inherit resolve;
+    node = resolve lock;
+    # A locked node's store path through the FIXED-OUTPUT form: upstream Nix returns a valid path without
+    # consulting its git tarball cache. `github` only, over its exact key set; anything else refuses by
+    # name rather than falling back to `fetchTree`.
+    locked =
+      locked:
+      if
+        builtins.attrNames locked == [
+          "lastModified"
+          "narHash"
+          "owner"
+          "repo"
+          "rev"
+          "type"
+        ]
+        && locked.type == "github"
+      then
+        builtins.fetchTarball {
+          url = "https://github.com/${locked.owner}/${locked.repo}/archive/${locked.rev}.tar.gz";
+          sha256 = locked.narHash;
+        }
+      else
+        throw "gen-rules: a locked node of type `${toString (locked.type or null)}` with attributes ${toString (builtins.attrNames locked)} has no fixed-output form here; refusing rather than falling back to fetchTree";
+  };
 in
 {
   inputs ? { },
-  src ? segs: "${builtins.fetchTree lock.nodes.${fetch segs}.locked}",
+  src ? segs: fetch.locked lock.nodes.${fetch.node segs}.locked,
   # Arity dispatch, because a dependency's root is a function at a shim'd library and a bare value
   # at a leaf, and neither `import p` nor `import p { }` is total over both.
   dep ?
@@ -48,7 +76,7 @@ in
   wire ?
     {
       deps,
-      resolve,
+      fetch,
       lock,
     }:
     import ./lib deps,
@@ -120,5 +148,5 @@ let
   forced = builtins.deepSeq (builtins.mapAttrs (_: builtins.typeOf) all) null;
 in
 builtins.seq forced (wire {
-  inherit deps resolve lock;
+  inherit deps fetch lock;
 })
